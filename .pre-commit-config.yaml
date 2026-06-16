@@ -1,0 +1,30 @@
+---
+repos:
+  - repo: local
+    hooks:
+      - id: update-pre-commit
+        name: update-pre-commit
+        # run roughly every 20 commits
+        entry: bash -c 'if (( RANDOM % 20 == 0 )); then bash -c "pre-commit autoupdate"; fi;'
+        language: system
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+      - id: mixed-line-ending
+      - id: check-executables-have-shebangs
+
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [docs, build, feat, fix, ci, chore, refactor, revert, style, test]
