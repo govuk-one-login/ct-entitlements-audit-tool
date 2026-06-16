@@ -1,2 +1,6 @@
+bandit>=1.9
+coverage>=7.0
+pip-tools>=7.5
 pytest>=7.0
 pyyaml>=6.0
+ruff>=0.15

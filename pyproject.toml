@@ -1,4 +1,4 @@
-# https://gds-way.digital.cabinet-office.gov.uk/manuals/programming-languages/python/python.html#linting
+# https://gds-way.digital.cabinet-office.gov.uk/manuals/programming-languages/python/python.html#how-to-use-ruff
 
 [tool.ruff]
 exclude = []
@@ -15,7 +15,18 @@ target-version = "py312"
 # McCabe complexity (`C901`) by default.
 # Enable flake8-bugbear (`B`) rules, in addition to the defaults.
 # E/F = pycodestyle + pyflakes, I = isort rules
-select = ["E4", "E7", "E9", "F", "B", "I", "Q"]
+# select = ["E4", "E7", "E9", "F", "B", "I", "Q"]
+
+select = [
+    "E",  # pycodestyle
+    "W",  # pycodestyle
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C90",  # mccabe cyclomatic complexity
+    "G",  # flake8-logging-format
+]
+
 
 # 2. Avoid enforcing line-length violations (`E501`)
 ignore = ["E501"]
@@ -27,12 +38,6 @@ unfixable = ["B"]
 
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-[tool.ruff.lint.flake8-quotes]
-inline-quotes = "double"  # Options: "single", "double"
-# multiline-quotes = "double"
-# docstring-quotes = "double"
-# avoid-escape = true
 
 [tool.ruff.format]
 # Like Black, use double quotes for strings.
@@ -62,6 +67,7 @@ docstring-code-format = true
 # enabled.
 docstring-code-line-length = "dynamic"
 
-[tool.pytest.ini_options]
+tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=entitlements --cov-report=term-missing --cov-fail-under=80"
+
