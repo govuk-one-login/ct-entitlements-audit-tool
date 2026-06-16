@@ -1,0 +1,33 @@
+name: Entitlements Query
+description: Query user permissions across AWS accounts from entitlements configuration
+
+inputs:
+  query_type:
+    description: "Query type: user, email, account, role, permission, list-users, list-roles"
+    required: true
+  parameter:
+    description: "User alias, email, account name, role name, or permission name"
+    required: false
+    default: ""
+  account:
+    description: "Account name (only for 'user' query to filter by account)"
+    required: false
+    default: ""
+  base_path:
+    description: "Path to the terraform directory containing entitlements data"
+    required: false
+    default: "terraform"
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: pip install pyyaml
+
+    - name: Run entitlements query
+      shell: bash
+      run: |
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        python ${{ github.action_path }}/entitlements.py ${{ inputs.query_type }} ${{ inputs.parameter }} ${{ inputs.account }} --base-path ${{ inputs.base_path }} >> "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
