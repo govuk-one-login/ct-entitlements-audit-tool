@@ -17,8 +17,10 @@ Usage:
 """
 
 import argparse
+import csv
 import sys
 from collections import defaultdict
+from io import StringIO
 from pathlib import Path
 
 from entitlements import EntitlementsModel
@@ -232,6 +234,56 @@ def interactive_mode(model: EntitlementsModel):
             print("Invalid choice")
 
 
+def csv_user(model: EntitlementsModel, user_alias: str, account: str = None):
+    perms = model.get_user_permissions(user_alias)
+    if not perms:
+        return
+    writer = csv.writer(sys.stdout)
+    writer.writerow(["user", "account", "permission_set", "type"])
+    for acct, perms_list in perms.standing_permissions.items():
+        if account and acct != account:
+            continue
+        for perm in perms_list:
+            writer.writerow([user_alias, acct, perm, "standing"])
+    for acct, perms_list in perms.eligible_permissions.items():
+        if account and acct != account:
+            continue
+        for perm in perms_list:
+            writer.writerow([user_alias, acct, perm, "eligible"])
+
+
+def csv_account(model: EntitlementsModel, account_name: str):
+    users = model.get_users_with_access_to_account(account_name)
+    if not users:
+        return
+    writer = csv.writer(sys.stdout)
+    writer.writerow(["user", "display_name", "account", "permission_set", "type"])
+    for user_alias in users:
+        perms = model.get_user_permissions(user_alias)
+        user_data = model.users[user_alias]
+        if account_name in perms.standing_permissions:
+            for perm in perms.standing_permissions[account_name]:
+                writer.writerow([user_alias, user_data['display_name'], account_name, perm, "standing"])
+        if account_name in perms.eligible_permissions:
+            for perm in perms.eligible_permissions[account_name]:
+                writer.writerow([user_alias, user_data['display_name'], account_name, perm, "eligible"])
+
+
+def csv_list_users(model: EntitlementsModel):
+    writer = csv.writer(sys.stdout)
+    writer.writerow(["alias", "display_name", "email", "pod", "team"])
+    for user_alias, user_data in sorted(model.users.items()):
+        writer.writerow([user_alias, user_data['display_name'], user_data['email'], user_data['pod'], user_data['team']])
+
+
+def csv_list_roles(model: EntitlementsModel):
+    writer = csv.writer(sys.stdout)
+    writer.writerow(["role", "groups_count"])
+    for role_name in sorted(model.role_entitlements):
+        groups = model.get_groups_for_role(role_name)
+        writer.writerow([role_name, len(groups)])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Query user permissions across AWS accounts"
@@ -239,6 +291,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--base-path", type=str, default=None,
         help="Path to the terraform directory (default: auto-detect)"
+    )
+    parser.add_argument(
+        "--format", type=str, choices=["text", "csv"], default="text",
+        help="Output format (default: text)"
     )
     parser.add_argument(
         "--environment", type=str, default="production",
@@ -275,6 +331,23 @@ def main():
 
     base_path = args.base_path or str(Path(__file__).parent.parent.parent / "terraform")
     model = EntitlementsModel(base_path, environment=args.environment)
+
+    if args.format == "csv":
+        if args.command == "user":
+            csv_user(model, args.alias, args.account)
+        elif args.command == "email":
+            user_alias = model.find_user_by_email(args.address)
+            if user_alias:
+                csv_user(model, user_alias)
+        elif args.command == "account":
+            csv_account(model, args.name)
+        elif args.command == "list-users":
+            csv_list_users(model)
+        elif args.command == "list-roles":
+            csv_list_roles(model)
+        else:
+            print("CSV format not supported for this query type", file=sys.stderr)
+        return
 
     if args.command is None:
         interactive_mode(model)

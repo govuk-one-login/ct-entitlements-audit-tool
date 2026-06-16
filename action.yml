@@ -25,16 +25,28 @@ runs:
       shell: bash
       run: pip install pyyaml python-hcl2
 
-    - name: Run entitlements query
+    - name: Build query arguments
+      id: args
       shell: bash
       run: |
         ARGS="--base-path ${{ inputs.base_path }} ${{ inputs.query_type }}"
-        if [ -n "${{ inputs.parameter }}" ]; then
-          ARGS="$ARGS ${{ inputs.parameter }}"
-        fi
-        if [ -n "${{ inputs.account }}" ]; then
-          ARGS="$ARGS ${{ inputs.account }}"
-        fi
+        [ -n "${{ inputs.parameter }}" ] && ARGS="$ARGS ${{ inputs.parameter }}"
+        [ -n "${{ inputs.account }}" ] && ARGS="$ARGS ${{ inputs.account }}"
+        echo "value=$ARGS" >> "$GITHUB_OUTPUT"
+
+    - name: Run entitlements query
+      shell: bash
+      run: |
         echo '```' >> "$GITHUB_STEP_SUMMARY"
-        python ${{ github.action_path }}/entitlements.py $ARGS >> "$GITHUB_STEP_SUMMARY"
+        python ${{ github.action_path }}/entitlements.py ${{ steps.args.outputs.value }} | tee output.txt >> "$GITHUB_STEP_SUMMARY"
         echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Generate CSV
+      shell: bash
+      run: python ${{ github.action_path }}/entitlements.py --format csv ${{ steps.args.outputs.value }} > entitlements-query-result.csv
+
+    - name: Upload CSV artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: entitlements-query-result
+        path: entitlements-query-result.csv
