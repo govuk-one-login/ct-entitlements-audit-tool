@@ -5,6 +5,10 @@ help:
 	@echo ""
 	@echo "Setup:"
 	@echo "  make install          Install Python dependencies"
+	@echo "  make install-test     Install Python dependencies for testing"
+	@echo ""
+	@echo "Testing:"
+	@echo "  make test             Install Python dependencies"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make interactive      Launch interactive query mode"
@@ -25,12 +29,21 @@ help:
 	@echo "  make query-role ROLE=<name>"
 
 install:
-	pip install -r requirements-entitlements.txt
+	@if [ -n "$$VIRTUAL_ENV" ] ; then \
+		uv pip install -r requirements.txt; \
+	else \
+		pip install -r requirements.txt; \
+	fi
+
 
 install-test:
-	pip install -r requirements-test.txt
+	@if [ -n "$$VIRTUAL_ENV" ] ; then \
+		uv pip install -r requirements-test.txt; \
+	else \
+		pip install -r requirements-test.txt; \
+	fi
 
-test:
+test: install-test
 	python -m pytest tests/ -v
 
 interactive:
