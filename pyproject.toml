@@ -76,4 +76,3 @@ docstring-code-line-length = "dynamic"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=entitlements --cov-report=term-missing --cov-fail-under=80"
-
