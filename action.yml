@@ -28,6 +28,13 @@ runs:
     - name: Run entitlements query
       shell: bash
       run: |
+        ARGS="--base-path ${{ inputs.base_path }} ${{ inputs.query_type }}"
+        if [ -n "${{ inputs.parameter }}" ]; then
+          ARGS="$ARGS ${{ inputs.parameter }}"
+        fi
+        if [ -n "${{ inputs.account }}" ]; then
+          ARGS="$ARGS ${{ inputs.account }}"
+        fi
         echo '```' >> "$GITHUB_STEP_SUMMARY"
-        python ${{ github.action_path }}/entitlements.py ${{ inputs.query_type }} ${{ inputs.parameter }} ${{ inputs.account }} --base-path ${{ inputs.base_path }} >> "$GITHUB_STEP_SUMMARY"
+        python ${{ github.action_path }}/entitlements.py $ARGS >> "$GITHUB_STEP_SUMMARY"
         echo '```' >> "$GITHUB_STEP_SUMMARY"
