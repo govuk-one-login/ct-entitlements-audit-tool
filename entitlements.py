@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+#-*- coding: utf-8 -*-
+
 """
 Entitlements Query Interface
 
@@ -6,15 +9,23 @@ Queries user permissions across AWS accounts based on the Terraform
 Identity Center entitlements configuration.
 
 Usage:
-  python entitlements.py                              # Interactive mode
-  python entitlements.py user <alias> [account]       # User permissions
-  python entitlements.py email <email>                # Lookup by email
-  python entitlements.py account <account_name>       # Account access audit
-  python entitlements.py role <role_name>             # Role details
-  python entitlements.py permission <permission_name> # Permission set details
-  python entitlements.py list-users                   # List all users
-  python entitlements.py list-roles                   # List all roles
+    python entitlements.py                              # Interactive mode
+    python entitlements.py user <alias> [account]       # User permissions
+    python entitlements.py email <email>                # Lookup by email
+    python entitlements.py account <account_name>       # Account access audit
+    python entitlements.py role <role_name>             # Role details
+    python entitlements.py permission <permission_name> # Permission set details
+    python entitlements.py list-users                   # List all users
+    python entitlements.py list-roles                   # List all roles
+
+Exit codes:
+    0 - Success
+    2 - Invalid or no command line arguments
+    3 - Base path (terraform/) does not exist
+    5 - User/Account/Role not found
 """
+
+from __future__ import annotations
 
 import argparse
 import sys
@@ -23,6 +34,8 @@ from pathlib import Path
 
 from entitlements import EntitlementsModel
 
+RED    = '\033[31m'
+RESET  = '\033[0m'
 
 def print_header(title: str):
     print(f"\n{'='*80}")
@@ -30,11 +43,11 @@ def print_header(title: str):
     print(f"{'='*80}\n")
 
 
-def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None):
+def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None) -> bool:
     perms = model.get_user_permissions(user_alias)
     if not perms:
         print(f"User '{user_alias}' not found")
-        return
+        return False
 
     user_data = model.users[user_alias]
     print_header(f"User: {user_data['display_name']} ({user_alias})")
@@ -75,22 +88,24 @@ def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None):
             for perm in perms_list:
                 print(f"    - {perm}")
 
+    return True
 
-def cmd_email(model: EntitlementsModel, email: str):
+
+def cmd_email(model: EntitlementsModel, email: str) -> bool:
     user_alias = model.find_user_by_email(email)
     if not user_alias:
         print(f"No user found with email: {email}")
-        return
-    cmd_user(model, user_alias)
+        return False
+    return cmd_user(model, user_alias)
 
 
-def cmd_account(model: EntitlementsModel, account_name: str):
+def cmd_account(model: EntitlementsModel, account_name: str) -> bool:
     print_header(f"Access Audit for Account: {account_name}")
 
     users = model.get_users_with_access_to_account(account_name)
     if not users:
         print(f"No users found with access to '{account_name}'")
-        return
+        return False
 
     standing_users = []
     eligible_users = []
@@ -116,13 +131,15 @@ def cmd_account(model: EntitlementsModel, account_name: str):
         for perm in permissions:
             print(f"    - {perm}")
 
+    return True
 
-def cmd_role(model: EntitlementsModel, role_name: str):
+
+def cmd_role(model: EntitlementsModel, role_name: str) -> bool:
     print_header(f"Role: {role_name}")
 
     if role_name not in model.role_entitlements:
         print(f"Role '{role_name}' not found")
-        return
+        return False
 
     groups = model.get_groups_for_role(role_name)
     print(f"Assigned to groups: {', '.join(groups)}\n")
@@ -147,14 +164,16 @@ def cmd_role(model: EntitlementsModel, role_name: str):
                 print(f"      Accounts: {', '.join(ent.accounts) if ent.accounts else 'None'}")
                 print(f"      OUs: {', '.join(ent.org_units) if ent.org_units else 'None'}")
 
+    return True
 
-def cmd_permission(model: EntitlementsModel, permission_name: str):
+
+def cmd_permission(model: EntitlementsModel, permission_name: str) -> bool:
     print_header(f"Permission Set: {permission_name}")
 
     perm = model.get_permission_details(permission_name)
     if not perm:
         print(f"Permission set '{permission_name}' not found in loaded configurations")
-        return
+        return False
 
     print(f"Description: {perm.description}\n")
 
@@ -171,6 +190,8 @@ def cmd_permission(model: EntitlementsModel, permission_name: str):
     roles_using = model.get_roles_using_permission(permission_name)
     if roles_using:
         print(f"\n\nUsed by roles: {', '.join(roles_using)}")
+
+    return True
 
 
 def cmd_list_users(model: EntitlementsModel):
@@ -265,6 +286,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("list-users", help="List all users")
     sub.add_parser("list-roles", help="List all roles")
+    sub.add_parser("interactive", help="Interactive mode")
 
     return parser
 
@@ -273,25 +295,40 @@ def main():
     parser = build_parser()
     args = parser.parse_args()
 
+    if args.command is None:
+        print(f"\n{RED}ERROR{RESET}: No command specified\n")
+        parser.print_help()
+        sys.exit(2)
+
     base_path = args.base_path or str(Path(__file__).parent.parent.parent / "terraform")
+    if not Path(base_path).exists():
+        print(f"\n{RED}ERROR{RESET}: Base path does not exist: {base_path}\n")
+        parser.print_help()
+        sys.exit(3)
+
+    print(f"Loading entitlements from {base_path}, using environment {args.environment}")
     model = EntitlementsModel(base_path, environment=args.environment)
 
-    if args.command is None:
-        interactive_mode(model)
-    elif args.command == "user":
-        cmd_user(model, args.alias, args.account)
+    result = None
+    if args.command == "user":
+        result = cmd_user(model, args.alias, args.account)
     elif args.command == "email":
-        cmd_email(model, args.address)
+        result = cmd_email(model, args.address)
     elif args.command == "account":
-        cmd_account(model, args.name)
+        result = cmd_account(model, args.name)
     elif args.command == "role":
-        cmd_role(model, args.name)
+        result = cmd_role(model, args.name)
     elif args.command == "permission":
-        cmd_permission(model, args.name)
+        result = cmd_permission(model, args.name)
     elif args.command == "list-users":
         cmd_list_users(model)
     elif args.command == "list-roles":
         cmd_list_roles(model)
+    elif args.command == "interactive":
+        interactive_mode(model)
+
+    if result is False:
+        sys.exit(5)
 
 
 if __name__ == "__main__":
