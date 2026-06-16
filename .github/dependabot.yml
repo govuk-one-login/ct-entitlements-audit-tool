@@ -1,0 +1,34 @@
+---
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 3
+    target-branch: "main"
+    reviewers:
+      - "govuk-one-login/fog"
+    labels:
+      - "dependencies"
+      - "python"
+    # Bundle boto3 and botocore together in one PR
+    # See https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#groups--
+    groups:
+      boto3:
+        patterns:
+          - "boto*"
+          - "s3transfer*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 3
+    target-branch: "main"
+    reviewers:
+      - "govuk-one-login/fog"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
