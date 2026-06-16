@@ -1,4 +1,4 @@
-bandit>=1.9
+bandit>=1.9.4
 coverage>=7.0
 pip-tools>=7.5
 pytest>=7.0
