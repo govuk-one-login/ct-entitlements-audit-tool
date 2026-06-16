@@ -12,13 +12,14 @@ updates:
     labels:
       - "dependencies"
       - "python"
-    # Bundle boto3 and botocore together in one PR
     # See https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#groups--
     groups:
-      boto3:
-        patterns:
-          - "boto*"
-          - "s3transfer*"
+      applies-to: version-updates
+      patterns:
+        - "*"
+      update-types:
+        - "minor"
+        - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -31,4 +32,3 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
-
