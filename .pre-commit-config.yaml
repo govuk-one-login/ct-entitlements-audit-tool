@@ -4,9 +4,22 @@ repos:
     hooks:
       - id: update-pre-commit
         name: update-pre-commit
-        # run roughly every 20 commits
-        entry: bash -c 'if (( RANDOM % 20 == 0 )); then bash -c "pre-commit autoupdate"; fi;'
+        pass_filenames: false
+        verbose: true
         language: system
+        # run roughly every 10 commits
+        # For busy repos we should change this to 15 or 20
+        # entry: bash -c 'if (( RANDOM % 10 == 0 )); then bash -c "pre-commit autoupdate"; fi;'
+        # Update if oldter than 3 days
+        entry: |
+          bash -c '
+            if [[ $(( $(date +'%s') - $( stat -f '%m' .pre-commit-config.yaml) )) -gt $(( 3600 * 24 * 3 )) ]] ; then
+              echo "Updating pre-commit, as older than 3 days"
+              pre-commit autoupdate
+            else
+              echo "Not updating pre-commit, as < 3 days old"
+            fi
+            '
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -16,6 +29,14 @@ repos:
       - id: check-added-large-files
       - id: mixed-line-ending
       - id: check-executables-have-shebangs
+     # Python
+      - id: check-ast
+      - id: check-docstring-first
+      - id: check-builtin-literals
+      - id: requirements-txt-fixer
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+        args: [--branch, main]
 
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.38.0
@@ -28,3 +49,39 @@ repos:
       - id: conventional-pre-commit
         stages: [commit-msg]
         args: [docs, build, feat, fix, ci, chore, refactor, revert, style, test]
+  #
+  # - repo: https://github.com/jorisroovers/gitlint
+  #   rev: v0.19.1
+  #   hooks:
+  #     - id: gitlint
+  #       name: Git Lint
+  #       stages: [commit-msg]
+  #
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.5
+    rev: v0.15.17
+    hooks:
+
+      # Run the linter.
+      - id: ruff-check
+        args: [--respect-gitignore, --no-fix, --diff]
+        files: \.py$
+        types: ["python"]
+        # to run:
+        # pre-commit run --hook-stage manual ruff-check
+        stages: [manual]
+      - id: ruff-check
+        args: [--respect-gitignore, --no-fix, --statistics]
+        files: \.py$
+        types: ["python"]
+        # to run:
+        # pre-commit run --hook-stage manual ruff-check
+        stages: [manual]
+      # Run the formatter.
+      - id: ruff-format
+        args: [--respect-gitignore, --diff]
+        files: \.py$
+        types: ["python"]
+        # to run:
+        # pre-commit run --hook-stage manual ruff-manual
+        stages: [manual]
