@@ -47,14 +47,11 @@ test: install-test
 	python -m pytest tests/ -v
 
 interactive:
-	python entitlements_interactive.py
-
-examples:
-	python entitlements_examples.py
+	python entitlements.py interactive
 
 test-user:
 	@echo "Testing user query..."
-	@python entitlements_interactive.py list-users | head -20
+	@python entitlements.py list-users | head -20
 	@echo ""
 	@echo "To query a specific user, run: make query-user USER=<alias>"
 
@@ -84,7 +81,7 @@ query-account:
 		echo "Usage: make query-account ACCOUNT=<name>"; \
 		exit 1; \
 	fi
-	python entitlements_interactive.py account $(ACCOUNT)
+	python entitlements.py account $(ACCOUNT)
 
 query-role:
 	@if [ -z "$(ROLE)" ]; then \
@@ -92,7 +89,7 @@ query-role:
 		echo "Usage: make query-role ROLE=<name>"; \
 		exit 1; \
 	fi
-	python entitlements_interactive.py role $(ROLE)
+	python entitlements.py role $(ROLE)
 
 export-all:
 	@echo "Exporting all users to entitlements_all_users.json..."
@@ -110,10 +107,10 @@ export-full:
 	@echo "Done! Output saved to entitlements_full.json"
 
 list-users:
-	python entitlements_interactive.py list-users
+	python entitlements.py list-users
 
 list-roles:
-	python entitlements_interactive.py list-roles
+	python entitlements.py list-roles
 
 clean:
 	rm -f entitlements_*.json
