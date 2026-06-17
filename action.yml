@@ -21,6 +21,10 @@ inputs:
     description: "Whether to upload the CSV as an artifact"
     required: false
     default: "true"
+  write_summary:
+    description: "Whether to write output to the step summary"
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -41,9 +45,13 @@ runs:
     - name: Run entitlements query
       shell: bash
       run: |
-        echo '```' >> "$GITHUB_STEP_SUMMARY"
-        python ${{ github.action_path }}/entitlements.py ${{ steps.args.outputs.value }} | tee output.txt >> "$GITHUB_STEP_SUMMARY"
-        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        if [ "${{ inputs.write_summary }}" = "true" ]; then
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python ${{ github.action_path }}/entitlements.py ${{ steps.args.outputs.value }} | tee output.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+        else
+          python ${{ github.action_path }}/entitlements.py ${{ steps.args.outputs.value }} > output.txt
+        fi
 
     - name: Generate CSV
       shell: bash
