@@ -1,5 +1,12 @@
 # https://gds-way.digital.cabinet-office.gov.uk/manuals/programming-languages/python/python.html#how-to-use-ruff
 
+[project]
+name = "ct-entitlements-audit-tool"
+version = "0.1.0"
+description = "Entitlements CLI auditing/diff-reporting for terraform-aws-identitystore"
+readme = "README.md"
+requires-python = ">=3.12"
+
 [tool.ruff]
 exclude = []
 # Same as Black.
