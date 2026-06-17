@@ -139,17 +139,18 @@ class EntitlementsModel:
         """Load groups from groups.yaml files."""
         group_count = 0
         for groups_file in self.env_path.rglob("groups.yaml"):
-            logger.debug("Loading groups from %s", groups_file)
-            content = self._read_file(groups_file)
-            groups_data = yaml.safe_load(content)
-            for group_name, group_config in groups_data.items():
-                self.groups[group_name] = group_config
-                self.group_to_roles[group_name] = group_config.get('roles', [])
-                for collab in group_config.get('collaborators', []):
-                    self.user_to_groups[collab].append(group_name)
-                group_count += 1
-
-        logger.info("Loaded %d groups", group_count)
+            with open(groups_file, 'r') as f:
+                groups_data = yaml.safe_load(f)
+                for group_name, group_config in groups_data.items():
+                    self.groups[group_name] = group_config
+                    self.group_to_roles[group_name] = group_config.get('roles', [])
+                    member_types = ['collaborators', 'permanent_members']
+                    extra_members = []
+                    for mtype in member_types:
+                        for member in group_config.get(mtype, []):
+                            extra_members.append(member)
+                    for extra_member in extra_members:
+                        self.user_to_groups[extra_member].append(group_name)
 
     def _load_entitlements(self):
         """Load entitlements from entitlements YAML files."""

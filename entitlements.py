@@ -455,14 +455,7 @@ def main():
         parser.print_help()
         sys.exit(2)
 
-    if os.environ.get("IDSTORE"):
-        default_base_path = os.environ.get("IDSTORE")
-        logger.info("Using IDSTORE environment variable: %s", default_base_path)
-    else:
-        default_base_path = str(Path(__file__).parent.parent.parent / "terraform")
-        logger.info("Deducing base path from %s (set IDSTORE to override)", Path(__file__))
-
-    base_path = args.base_path or default_base_path
+    base_path = args.base_path or os.environ.get("ENTITLEMENTS_BASE_PATH")
     if not Path(base_path).exists():
         logger.error("Base path does not exist: %s", base_path)
         print(f"\n{RED}ERROR{RESET}: Base path does not exist: {base_path}\n", file=sys.stderr)
