@@ -28,6 +28,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -300,7 +301,7 @@ def main():
         parser.print_help()
         sys.exit(2)
 
-    base_path = args.base_path or str(Path(__file__).parent.parent.parent / "terraform")
+    base_path = args.base_path or os.environ.get("ENTITLEMENTS_BASE_PATH")
     if not Path(base_path).exists():
         print(f"\n{RED}ERROR{RESET}: Base path does not exist: {base_path}\n")
         parser.print_help()
