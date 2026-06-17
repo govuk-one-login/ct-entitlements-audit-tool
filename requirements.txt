@@ -1,2 +1,2 @@
-python-hcl2>=4.3.0  # Optional: for better HCL parsing
+python-hcl2>=8.1.2  # Optional: for better HCL parsing
 pyyaml>=6.0
