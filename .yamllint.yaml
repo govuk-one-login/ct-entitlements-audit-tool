@@ -1,0 +1,9 @@
+---
+extends: default
+
+rules:
+  # 120 chars should be enough, but don't fail if a line is longer
+  # https://gds-way.digital.cabinet-office.gov.uk/manuals/programming-languages/python/python.html
+  line-length:
+    max: 120
+    level: warning
