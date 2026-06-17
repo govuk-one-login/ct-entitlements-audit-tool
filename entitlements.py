@@ -44,7 +44,7 @@ def print_header(title: str):
     print(f"{'='*80}\n")
 
 
-def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None) -> bool:
+def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None, detailed: bool = False) -> bool:
     perms = model.get_user_permissions(user_alias)
     if not perms:
         print(f"User '{user_alias}' not found")
@@ -59,23 +59,47 @@ def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None) -> 
 
     if account:
         print(f"Permissions in account '{account}':\n")
-        if account in perms.standing_permissions:
-            print("  Standing (Always Active):")
-            for perm in perms.standing_permissions[account]:
-                print(f"    - {perm}")
-                details = model.get_permission_details(perm)
-                if details:
-                    for policy in details.managed_policies:
-                        print(f"        → {policy}")
 
-        if account in perms.eligible_permissions:
-            print("\n  Eligible (Request Required):")
-            for perm in perms.eligible_permissions[account]:
-                print(f"    - {perm}")
-                details = model.get_permission_details(perm)
+        # Build the access chain: group -> role -> entitlement for this account
+        # Deduplicate by permission set, collecting all granting paths
+        groups = model.user_to_groups.get(user_alias, [])
+        by_type = {'STANDING': defaultdict(list), 'ELIGIBLE': defaultdict(list)}
+
+        for group in groups:
+            for role in model.group_to_roles.get(group, []):
+                for ent in model.role_entitlements.get(role, []):
+                    if account in ent.accounts:
+                        by_type[ent.entitlement_type][ent.permission_set].append(
+                            (group, role, ent.assignment_set)
+                        )
+
+        if by_type['STANDING']:
+            print("  Standing (Always Active):")
+            for perm_set, paths in sorted(by_type['STANDING'].items()):
+                print(f"\n    - {perm_set}")
+                if detailed:
+                    for group, role, assignment_set in paths:
+                        print(f"        User '{user_alias}' → Group '{group}' → Role '{role}' → Assignment '{assignment_set}' → Account '{account}'")
+                details = model.get_permission_details(perm_set)
                 if details:
                     for policy in details.managed_policies:
                         print(f"        → {policy}")
+                    for policy in details.inline_policies:
+                        print(f"        → [inline] {policy}")
+
+        if by_type['ELIGIBLE']:
+            print("\n  Eligible (Request Required):")
+            for perm_set, paths in sorted(by_type['ELIGIBLE'].items()):
+                print(f"    - {perm_set}")
+                if detailed:
+                    for group, role, assignment_set in paths:
+                        print(f"        User '{user_alias}' → Group '{group}' → Role '{role}' → Assignment '{assignment_set}' → Account '{account}'")
+                details = model.get_permission_details(perm_set)
+                if details:
+                    for policy in details.managed_policies:
+                        print(f"        → {policy}")
+                    for policy in details.inline_policies:
+                        print(f"        → [inline] {policy}")
     else:
         print("Standing Permissions (Always Active):")
         for acct, perms_list in sorted(perms.standing_permissions.items()):
@@ -272,6 +296,7 @@ def build_parser() -> argparse.ArgumentParser:
     user_p = sub.add_parser("user", help="Query user permissions by alias")
     user_p.add_argument("alias", help="User alias")
     user_p.add_argument("account", nargs="?", default=None, help="Optional account filter")
+    user_p.add_argument("--detailed", action="store_true", help="Show access chain trace for account permissions")
 
     email_p = sub.add_parser("email", help="Query user permissions by email")
     email_p.add_argument("address", help="User email address")
@@ -312,7 +337,7 @@ def main():
 
     result = None
     if args.command == "user":
-        result = cmd_user(model, args.alias, args.account)
+        result = cmd_user(model, args.alias, args.account, args.detailed)
     elif args.command == "email":
         result = cmd_email(model, args.address)
     elif args.command == "account":
