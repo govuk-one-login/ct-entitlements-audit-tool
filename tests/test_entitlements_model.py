@@ -44,6 +44,9 @@ class TestLoadGroups:
     def test_collaborators_added_to_user_groups(self, model):
         assert "alpha-team-one" in model.user_to_groups["charlie"]
 
+    def test_permanent_members_added_to_user_groups(self, model):
+        assert "alpha-team-two" in model.user_to_groups["danielle"]
+
 
 class TestLoadEntitlements:
     def test_loads_dev_permissions(self, model):

@@ -23,7 +23,8 @@ def base_path(tmp_path):
             "collaborators": ["charlie"]
         },
         "alpha-team-two": {
-            "roles": ["team-two"]
+            "roles": ["team-two"],
+            "permanent_members": ["danielle"]
         }
     }
     (env_pods / "groups.yaml").write_text(yaml.dump(groups))
