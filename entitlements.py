@@ -10,8 +10,7 @@ Identity Center entitlements configuration.
 
 Usage:
     python entitlements.py                              # Interactive mode
-    python entitlements.py user <alias> [account]       # User permissions
-    python entitlements.py email <email>                # Lookup by email
+    python entitlements.py user <alias|email> [account] # User permissions
     python entitlements.py account <account_name>       # Account access audit
     python entitlements.py role <role_name>             # Role details
     python entitlements.py permission <permission_name> # Permission set details
@@ -44,11 +43,23 @@ def print_header(title: str):
     print(f"{'='*80}\n")
 
 
-def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None, detailed: bool = False) -> bool:
-    perms = model.get_user_permissions(user_alias)
-    if not perms:
-        print(f"User '{user_alias}' not found")
+def resolve_user(model: EntitlementsModel, identifier: str) -> str | None:
+    """Resolve a user alias or email address to a user alias."""
+    if identifier in model.users:
+        return identifier
+    resolved = model.find_user_by_email(identifier)
+    if resolved:
+        return resolved
+    return None
+
+
+def cmd_user(model: EntitlementsModel, identifier: str, account: str = None, detailed: bool = False) -> bool:
+    user_alias = resolve_user(model, identifier)
+    if not user_alias:
+        print(f"User '{identifier}' not found")
         return False
+
+    perms = model.get_user_permissions(user_alias)
 
     user_data = model.users[user_alias]
     print_header(f"User: {user_data['display_name']} ({user_alias})")
@@ -115,13 +126,6 @@ def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None, det
 
     return True
 
-
-def cmd_email(model: EntitlementsModel, email: str) -> bool:
-    user_alias = model.find_user_by_email(email)
-    if not user_alias:
-        print(f"No user found with email: {email}")
-        return False
-    return cmd_user(model, user_alias)
 
 
 def cmd_account(model: EntitlementsModel, account_name: str) -> bool:
@@ -245,34 +249,31 @@ def interactive_mode(model: EntitlementsModel):
 
     while True:
         print("\nAvailable queries:")
-        print("  1. User permissions (by alias)")
-        print("  2. User permissions (by email)")
-        print("  3. Account access audit")
-        print("  4. Role details")
-        print("  5. Permission set details")
-        print("  6. List all users")
-        print("  7. List all roles")
+        print("  1. User permissions (by alias or email)")
+        print("  2. Account access audit")
+        print("  3. Role details")
+        print("  4. Permission set details")
+        print("  5. List all users")
+        print("  6. List all roles")
         print("  0. Exit")
 
-        choice = input("\nSelect query type (0-7): ").strip()
+        choice = input("\nSelect query type (0-6): ").strip()
 
         if choice == '0':
             break
         elif choice == '1':
-            alias = input("Enter user alias: ").strip()
+            identifier = input("Enter user alias or email: ").strip()
             account = input("Enter account name (or press Enter for all): ").strip()
-            cmd_user(model, alias, account or None)
+            cmd_user(model, identifier, account or None)
         elif choice == '2':
-            cmd_email(model, input("Enter email: ").strip())
-        elif choice == '3':
             cmd_account(model, input("Enter account name: ").strip())
-        elif choice == '4':
+        elif choice == '3':
             cmd_role(model, input("Enter role name: ").strip())
-        elif choice == '5':
+        elif choice == '4':
             cmd_permission(model, input("Enter permission set name: ").strip())
-        elif choice == '6':
+        elif choice == '5':
             cmd_list_users(model)
-        elif choice == '7':
+        elif choice == '6':
             cmd_list_roles(model)
         else:
             print("Invalid choice")
@@ -293,13 +294,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub = parser.add_subparsers(dest="command")
 
-    user_p = sub.add_parser("user", help="Query user permissions by alias")
-    user_p.add_argument("alias", help="User alias")
+    user_p = sub.add_parser("user", help="Query user permissions by alias or email")
+    user_p.add_argument("identifier", help="User alias or email address")
     user_p.add_argument("account", nargs="?", default=None, help="Optional account filter")
     user_p.add_argument("--detailed", action="store_true", help="Show access chain trace for account permissions")
-
-    email_p = sub.add_parser("email", help="Query user permissions by email")
-    email_p.add_argument("address", help="User email address")
 
     account_p = sub.add_parser("account", help="Audit account access")
     account_p.add_argument("name", help="Account name")
@@ -337,9 +335,7 @@ def main():
 
     result = None
     if args.command == "user":
-        result = cmd_user(model, args.alias, args.account, args.detailed)
-    elif args.command == "email":
-        result = cmd_email(model, args.address)
+        result = cmd_user(model, args.identifier, args.account, args.detailed)
     elif args.command == "account":
         result = cmd_account(model, args.name)
     elif args.command == "role":
