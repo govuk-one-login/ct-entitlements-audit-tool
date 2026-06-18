@@ -146,13 +146,13 @@ def cmd_user(model: EntitlementsModel, identifier: str, account: str = None, det
         print("Standing Permissions (Always Active):")
         for acct, perms_list in sorted(perms.standing_permissions.items()):
             print(f"\n  {acct}:")
-            for perm in perms_list:
+            for perm in set(perms_list):
                 print(f"    - {perm}")
 
         print("\n\nEligible Permissions (Request Required):")
         for acct, perms_list in sorted(perms.eligible_permissions.items()):
             print(f"\n  {acct}:")
-            for perm in perms_list:
+            for perm in set(perms_list):
                 print(f"    - {perm}")
 
     return True
@@ -194,13 +194,13 @@ def cmd_account(model: EntitlementsModel, account_name: str) -> bool:
     print(f"Standing Access ({len(standing_users)} users):")
     for name, alias, permissions in standing_users:
         print(f"\n  {name} ({alias})")
-        for perm in permissions:
+        for perm in set(permissions):
             print(f"    - {perm}")
 
     print(f"\n\nEligible Access ({len(eligible_users)} users):")
     for name, alias, permissions in eligible_users:
         print(f"\n  {name} ({alias})")
-        for perm in permissions:
+        for perm in set(permissions):
             print(f"    - {perm}")
 
     return True
