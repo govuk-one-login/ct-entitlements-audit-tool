@@ -278,25 +278,38 @@ def interactive_mode(model: EntitlementsModel):
             print("Invalid choice")
 
 
-def csv_user(model: EntitlementsModel, identifier: str, account: str = None):
+def csv_user(model: EntitlementsModel, identifier: str, account: str = None, detailed: bool = False):
     user_alias = resolve_user(model, identifier)
     if not user_alias:
         return
-    perms = model.get_user_permissions(user_alias)
-    if not perms:
-        return
     writer = csv.writer(sys.stdout)
-    writer.writerow(["user", "account", "permission_set", "type"])
-    for acct, perms_list in perms.standing_permissions.items():
-        if account and acct != account:
-            continue
-        for perm in perms_list:
-            writer.writerow([user_alias, acct, perm, "standing"])
-    for acct, perms_list in perms.eligible_permissions.items():
-        if account and acct != account:
-            continue
-        for perm in perms_list:
-            writer.writerow([user_alias, acct, perm, "eligible"])
+
+    if detailed:
+        writer.writerow(["user", "account", "permission_set", "type", "group", "role", "assignment_set"])
+        groups = model.user_to_groups.get(user_alias, [])
+        for group in groups:
+            for role in model.group_to_roles.get(group, []):
+                for ent in model.role_entitlements.get(role, []):
+                    for acct in ent.accounts:
+                        if account and acct != account:
+                            continue
+                        perm_type = "standing" if ent.entitlement_type == "STANDING" else "eligible"
+                        writer.writerow([user_alias, acct, ent.permission_set, perm_type, group, role, ent.assignment_set])
+    else:
+        writer.writerow(["user", "account", "permission_set", "type"])
+        perms = model.get_user_permissions(user_alias)
+        if not perms:
+            return
+        for acct, perms_list in perms.standing_permissions.items():
+            if account and acct != account:
+                continue
+            for perm in perms_list:
+                writer.writerow([user_alias, acct, perm, "standing"])
+        for acct, perms_list in perms.eligible_permissions.items():
+            if account and acct != account:
+                continue
+            for perm in perms_list:
+                writer.writerow([user_alias, acct, perm, "eligible"])
 
 
 def csv_account(model: EntitlementsModel, account_name: str):
@@ -393,7 +406,7 @@ def main():
 
     if args.format == "csv":
         if args.command == "user":
-            csv_user(model, args.identifier, args.account)
+            csv_user(model, args.identifier, args.account, args.detailed)
         elif args.command == "account":
             csv_account(model, args.name)
         elif args.command == "list-users":
