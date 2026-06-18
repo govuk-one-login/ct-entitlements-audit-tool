@@ -359,6 +359,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format (default: text)"
     )
     parser.add_argument(
+        "--detailed", action="store_true",
+        help="Show access chain trace (applies to user queries)"
+    )
+    parser.add_argument(
         "--environment", type=str, default="production",
         help="Environment to query (default: production)"
     )
@@ -368,7 +372,6 @@ def build_parser() -> argparse.ArgumentParser:
     user_p = sub.add_parser("user", help="Query user permissions by alias or email")
     user_p.add_argument("identifier", help="User alias or email address")
     user_p.add_argument("account", nargs="?", default=None, help="Optional account filter")
-    user_p.add_argument("--detailed", action="store_true", help="Show access chain trace for account permissions")
 
     account_p = sub.add_parser("account", help="Audit account access")
     account_p.add_argument("name", help="Account name")

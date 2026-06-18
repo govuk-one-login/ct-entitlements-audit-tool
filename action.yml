@@ -44,23 +44,24 @@ runs:
         ARGS="--base-path ${{ inputs.base_path }} ${{ inputs.query_type }}"
         [ -n "${{ inputs.parameter }}" ] && ARGS="$ARGS ${{ inputs.parameter }}"
         [ -n "${{ inputs.account }}" ] && ARGS="$ARGS ${{ inputs.account }}"
-        [ "${{ inputs.detailed }}" = "true" ] && ARGS="$ARGS --detailed"
         echo "value=$ARGS" >> "$GITHUB_OUTPUT"
 
     - name: Run entitlements query
       shell: bash
       run: |
+        EXTRA_ARGS=""
+        [ "${{ inputs.detailed }}" = "true" ] && EXTRA_ARGS="--detailed"
         if [ "${{ inputs.write_summary }}" = "true" ]; then
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          python ${{ github.action_path }}/entitlements.py ${{ steps.args.outputs.value }} | tee output.txt >> "$GITHUB_STEP_SUMMARY"
+          python ${{ github.action_path }}/entitlements.py $EXTRA_ARGS ${{ steps.args.outputs.value }} | tee output.txt >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
         else
-          python ${{ github.action_path }}/entitlements.py ${{ steps.args.outputs.value }} > output.txt
+          python ${{ github.action_path }}/entitlements.py $EXTRA_ARGS ${{ steps.args.outputs.value }} > output.txt
         fi
 
     - name: Generate CSV
       shell: bash
-      run: python ${{ github.action_path }}/entitlements.py --format csv ${{ steps.args.outputs.value }} > entitlements-query-result.csv
+      run: python ${{ github.action_path }}/entitlements.py --format csv --detailed ${{ steps.args.outputs.value }} > entitlements-query-result.csv
 
     - name: Upload CSV artifact
       if: inputs.upload_artifact == 'true'
