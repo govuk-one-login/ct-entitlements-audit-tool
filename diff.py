@@ -127,7 +127,9 @@ def write_summary(summary_path, header, changes):
             f.write("No entitlement changes detected.\n")
             return
 
-        # Summary line
+        lower = [h.lower() for h in header]
+
+        # Summary counts
         counts = defaultdict(int)
         for c in changes:
             counts[c[0]] += 1
@@ -140,33 +142,96 @@ def write_summary(summary_path, header, changes):
             parts.append(f"{counts['MODIFIED']} modified")
         f.write(f"**{', '.join(parts)}** ({sum(counts.values())} total changes)\n\n")
 
-        # Group by user/alias/account
-        group_label = get_group_label(header)
-        grouped = defaultdict(list)
-        for change in changes:
-            key = get_group_key(header, change[1])
-            grouped[key].append(change)
+        # Detect if this is a detailed user-permission CSV
+        has_user = "user" in lower or "alias" in lower
+        has_account = "account" in lower
+        has_permission = "permission_set" in lower
+        has_chain = "group" in lower and "role" in lower and "assignment_set" in lower
 
-        for group_name in sorted(grouped.keys()):
-            group_changes = sort_changes(grouped[group_name])
-            f.write(f"### {group_label}: {group_name}\n\n")
-            f.write("| Change | " + " | ".join(header) + " |\n")
-            f.write("| --- | " + " | ".join(["---"] * len(header)) + " |\n")
-            for change in group_changes:
-                row = list(change[1])
+        if has_user and has_account and has_permission:
+            _write_detailed_user_summary(f, header, lower, changes, has_chain)
+        else:
+            _write_table_summary(f, header, changes)
+
+
+def _write_detailed_user_summary(f, header, lower, changes, has_chain):
+    """Write a rich summary grouped by user, showing accounts and permissions."""
+    user_col = lower.index("user") if "user" in lower else lower.index("alias")
+    account_col = lower.index("account")
+    perm_col = lower.index("permission_set")
+    type_col = lower.index("type")
+    group_col = lower.index("group") if has_chain else None
+    role_col = lower.index("role") if has_chain else None
+    assignment_col = lower.index("assignment_set") if has_chain else None
+
+    # Group changes by user
+    by_user = defaultdict(list)
+    for change in changes:
+        row = change[1]
+        by_user[row[user_col]].append(change)
+
+    for user in sorted(by_user.keys()):
+        user_changes = sort_changes(by_user[user])
+        f.write(f"### {user}\n\n")
+
+        # Sub-group by account
+        by_account = defaultdict(list)
+        for change in user_changes:
+            by_account[change[1][account_col]].append(change)
+
+        for account in sorted(by_account.keys()):
+            f.write(f"**Account: {account}**\n\n")
+            for change in by_account[account]:
+                row = change[1]
+                prefix = "+" if change[0] == "ADDED" else "-" if change[0] == "REMOVED" else "~"
+                perm = row[perm_col]
+                perm_type = row[type_col]
+
+                if has_chain:
+                    chain = f"{row[group_col]} → {row[role_col]} → {row[assignment_col]}"
+                    f.write(f"- {prefix} **{change[0]}** `{perm}` ({perm_type}) via `{chain}`\n")
+                else:
+                    f.write(f"- {prefix} **{change[0]}** `{perm}` ({perm_type})\n")
+
                 if change[0] == "MODIFIED":
-                    old_row = list(change[2])
-                    # Highlight changed fields
-                    display = []
+                    old_row = change[2]
+                    diffs = []
                     for i, (new, old) in enumerate(zip(row, old_row)):
                         if new != old:
-                            display.append(f"~~{old}~~ → **{new}**")
-                        else:
-                            display.append(new)
-                    f.write(f"| MODIFIED | " + " | ".join(display) + " |\n")
-                else:
-                    f.write(f"| {change[0]} | " + " | ".join(row) + " |\n")
+                            diffs.append(f"{header[i]}: ~~{old}~~ → **{new}**")
+                    if diffs:
+                        f.write(f"  - Changed: {', '.join(diffs)}\n")
+
             f.write("\n")
+
+
+def _write_table_summary(f, header, changes):
+    """Fallback table-based summary for non-user-permission CSVs."""
+    group_label = get_group_label(header)
+    grouped = defaultdict(list)
+    for change in changes:
+        key = get_group_key(header, change[1])
+        grouped[key].append(change)
+
+    for group_name in sorted(grouped.keys()):
+        group_changes = sort_changes(grouped[group_name])
+        f.write(f"### {group_label}: {group_name}\n\n")
+        f.write("| Change | " + " | ".join(header) + " |\n")
+        f.write("| --- | " + " | ".join(["---"] * len(header)) + " |\n")
+        for change in group_changes:
+            row = list(change[1])
+            if change[0] == "MODIFIED":
+                old_row = list(change[2])
+                display = []
+                for i, (new, old) in enumerate(zip(row, old_row)):
+                    if new != old:
+                        display.append(f"~~{old}~~ → **{new}**")
+                    else:
+                        display.append(new)
+                f.write(f"| MODIFIED | " + " | ".join(display) + " |\n")
+            else:
+                f.write(f"| {change[0]} | " + " | ".join(row) + " |\n")
+        f.write("\n")
 
 
 def main():
