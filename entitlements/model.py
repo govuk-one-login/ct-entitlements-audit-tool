@@ -51,7 +51,7 @@ class EntitlementsModel:
         self.users: Dict[str, Dict] = {}
         self.groups: Dict[str, Dict] = {}
         self.user_to_groups: Dict[str, List[str]] = defaultdict(list)
-        self.user_to_teams: Dict[str, List[str]] = defaultdict(list)
+        self.user_to_teams: Dict[str, List[tuple]] = defaultdict(list)  # alias -> [(pod, team)]
         self.group_to_roles: Dict[str, List[str]] = {}
         self.role_entitlements: Dict[str, List[Entitlement]] = defaultdict(list)
         self.permissions: Dict[str, Permission] = {}
@@ -76,14 +76,15 @@ class EntitlementsModel:
                 reader = csv.DictReader(f)
                 for row in reader:
                     user_alias = row['user_alias']
-                    self.users[user_alias] = {
-                        'display_name': row['display_name'],
-                        'email': row['email'],
-                        'pod': pod_name,
-                        'team': team_name
-                    }
+                    if user_alias not in self.users:
+                        self.users[user_alias] = {
+                            'display_name': row['display_name'],
+                            'email': row['email'],
+                            'pod': pod_name,
+                            'team': team_name
+                        }
                     self.user_to_groups[user_alias].append(team_name)
-                    self.user_to_teams[user_alias].append(team_name)
+                    self.user_to_teams[user_alias].append((pod_name, team_name))
 
     def _load_groups(self):
         for groups_file in self.env_path.rglob("groups.yaml"):
