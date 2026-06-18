@@ -126,3 +126,17 @@ EmptyPerm = {
         model._parse_permissions_hcl(content)
         assert "EmptyPerm" in model.permissions
         assert model.permissions["EmptyPerm"].managed_policies == []
+
+    def test_parses_inline_policies(self, model):
+        content = '''
+TestInlinePerm = {
+  description = "Test permission"
+  managed_policies = []
+  inline_policy = [
+    "TestInlinePolicy"
+  ]
+}
+'''
+        model._parse_permissions_hcl(content)
+        assert "TestInlinePerm" in model.permissions
+        assert model.permissions["TestInlinePerm"].inline_policies == ["TestInlinePolicy"]
