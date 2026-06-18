@@ -346,7 +346,32 @@ def csv_list_roles(model: EntitlementsModel):
         writer.writerow([role_name, len(groups)])
 
 
-def build_parser() -> argparse.ArgumentParser:
+def csv_dump(model: EntitlementsModel, detailed: bool = False):
+    writer = csv.writer(sys.stdout)
+    if detailed:
+        writer.writerow(["user", "account", "permission_set", "type", "group", "role", "assignment_set"])
+        for user_alias in sorted(model.users):
+            groups = model.user_to_groups.get(user_alias, [])
+            for group in groups:
+                for role in model.group_to_roles.get(group, []):
+                    for ent in model.role_entitlements.get(role, []):
+                        perm_type = "standing" if ent.entitlement_type == "STANDING" else "eligible"
+                        for acct in ent.accounts:
+                            writer.writerow([user_alias, acct, ent.permission_set, perm_type, group, role, ent.assignment_set])
+    else:
+        writer.writerow(["user", "account", "permission_set", "type"])
+        for user_alias in sorted(model.users):
+            perms = model.get_user_permissions(user_alias)
+            if not perms:
+                continue
+            for acct, perms_list in sorted(perms.standing_permissions.items()):
+                for perm in perms_list:
+                    writer.writerow([user_alias, acct, perm, "standing"])
+            for acct, perms_list in sorted(perms.eligible_permissions.items()):
+                for perm in perms_list:
+                    writer.writerow([user_alias, acct, perm, "eligible"])
+
+
     parser = argparse.ArgumentParser(
         description="Query user permissions across AWS accounts"
     )
@@ -384,6 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("list-users", help="List all users")
     sub.add_parser("list-roles", help="List all roles")
+    sub.add_parser("dump", help="Dump all user permissions (for diffing)")
     sub.add_parser("interactive", help="Interactive mode")
 
     return parser
@@ -416,6 +442,8 @@ def main():
             csv_list_users(model)
         elif args.command == "list-roles":
             csv_list_roles(model)
+        elif args.command == "dump":
+            csv_dump(model, args.detailed)
         else:
             print("CSV format not supported for this query type", file=sys.stderr)
         return
