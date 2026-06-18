@@ -178,6 +178,27 @@ def _write_detailed_user_summary(f, header, lower, changes, has_chain):
         user_changes = sort_changes(by_user[user])
         f.write(f"### {user}\n\n")
 
+        # Identify root cause: which new groups/roles caused the additions
+        if has_chain:
+            added_groups = set()
+            added_roles = set()
+            for change in user_changes:
+                if change[0] == "ADDED":
+                    added_groups.add(change[1][group_col])
+                    added_roles.add(change[1][role_col])
+            if added_groups:
+                f.write("**Cause:** User added to group")
+                if len(added_groups) == 1:
+                    f.write(f" `{next(iter(added_groups))}`")
+                else:
+                    f.write(f"s {', '.join(f'`{g}`' for g in sorted(added_groups))}")
+                f.write(f", granting role")
+                if len(added_roles) == 1:
+                    f.write(f" `{next(iter(added_roles))}`")
+                else:
+                    f.write(f"s {', '.join(f'`{r}`' for r in sorted(added_roles))}")
+                f.write("\n\n")
+
         if has_chain:
             f.write("| Change | Account | Env | Permission Set | Type | Group | Role |\n")
             f.write("|--------|---------|-----|----------------|------|-------|------|\n")
