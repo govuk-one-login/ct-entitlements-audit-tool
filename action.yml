@@ -3,7 +3,7 @@ description: Query user permissions across AWS accounts from entitlements config
 
 inputs:
   query_type:
-    description: "Query type: user, email, account, role, permission, list-users, list-roles"
+    description: "Query type: user, account, role, permission, list-users, list-roles, dump, diff"
     required: true
   parameter:
     description: "User alias, email, account name, role name, or permission name"
@@ -21,6 +21,18 @@ inputs:
     description: "Path to the terraform directory containing entitlements data"
     required: false
     default: "terraform"
+  base_ref:
+    description: "Base branch for diff comparison"
+    required: false
+    default: ""
+  head_ref:
+    description: "Head branch for diff comparison"
+    required: false
+    default: ""
+  repository:
+    description: "Repository to checkout for diff (owner/repo)"
+    required: false
+    default: ${{ github.repository }}
   upload_artifact:
     description: "Whether to upload the CSV as an artifact"
     required: false
@@ -37,7 +49,59 @@ runs:
       shell: bash
       run: pip install pyyaml python-hcl2
 
+    # --- Diff mode ---
+    - name: Checkout base branch
+      if: inputs.query_type == 'diff'
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.repository }}
+        ref: ${{ inputs.base_ref }}
+        path: base
+
+    - name: Checkout head branch
+      if: inputs.query_type == 'diff'
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.repository }}
+        ref: ${{ inputs.head_ref }}
+        path: head
+
+    - name: "Diff: Quick dump and identify affected users"
+      if: inputs.query_type == 'diff'
+      shell: bash
+      env:
+        SCRIPTS: ${{ github.action_path }}
+      run: |
+        python $SCRIPTS/entitlements.py --format csv --base-path base/${{ inputs.base_path }} dump > before_quick.csv
+        python $SCRIPTS/entitlements.py --format csv --base-path head/${{ inputs.base_path }} dump > after_quick.csv
+        python $SCRIPTS/diff.py before_quick.csv after_quick.csv --affected-users affected.txt
+
+    - name: "Diff: Detailed dump for affected users"
+      if: inputs.query_type == 'diff'
+      shell: bash
+      env:
+        SCRIPTS: ${{ github.action_path }}
+      run: |
+        if [ ! -s affected.txt ]; then
+          echo "No entitlement changes detected." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        USERS=$(cat affected.txt)
+        python $SCRIPTS/entitlements.py --format csv --detailed --base-path base/${{ inputs.base_path }} dump --users "$USERS" > before_detailed.csv
+        python $SCRIPTS/entitlements.py --format csv --detailed --base-path head/${{ inputs.base_path }} dump --users "$USERS" > after_detailed.csv
+        python $SCRIPTS/diff.py before_detailed.csv after_detailed.csv --output entitlements-diff.csv --summary "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload diff CSV artifact
+      if: inputs.query_type == 'diff' && inputs.upload_artifact == 'true'
+      uses: actions/upload-artifact@v5
+      with:
+        name: entitlements-diff
+        path: entitlements-diff.csv
+        if-no-files-found: ignore
+
+    # --- Standard query mode ---
     - name: Build query arguments
+      if: inputs.query_type != 'diff'
       id: args
       shell: bash
       run: |
@@ -47,6 +111,7 @@ runs:
         echo "value=$ARGS" >> "$GITHUB_OUTPUT"
 
     - name: Run entitlements query
+      if: inputs.query_type != 'diff'
       shell: bash
       run: |
         EXTRA_ARGS=""
@@ -60,11 +125,12 @@ runs:
         fi
 
     - name: Generate CSV
+      if: inputs.query_type != 'diff'
       shell: bash
       run: python ${{ github.action_path }}/entitlements.py --format csv --detailed ${{ steps.args.outputs.value }} > entitlements-query-result.csv
 
     - name: Upload CSV artifact
-      if: inputs.upload_artifact == 'true'
+      if: inputs.query_type != 'diff' && inputs.upload_artifact == 'true'
       uses: actions/upload-artifact@v5
       with:
         name: entitlements-query-result
