@@ -274,9 +274,9 @@ def csv_list_users(model: EntitlementsModel):
     writer.writerow(["alias", "display_name", "email", "pod", "team"])
     rows = []
     for user_alias, user_data in model.users.items():
-        groups = model.user_to_groups.get(user_alias, [])
-        for group in groups:
-            rows.append([user_alias, user_data['display_name'], user_data['email'], user_data['pod'], group])
+        teams = model.user_to_teams.get(user_alias, [])
+        for team in teams:
+            rows.append([user_alias, user_data['display_name'], user_data['email'], user_data['pod'], team])
     for row in sorted(rows):
         writer.writerow(row)
 
