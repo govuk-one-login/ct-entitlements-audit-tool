@@ -16,7 +16,7 @@ a unified view of who has access to what.
 ## Prerequisites
 
 - Python 3.12+
-- Access to the terraform identity store directory (set via `IDSTORE`
+- Access to the terraform identity store directory (set via `ENTITLEMENTS_BASE_PATH`
   env var or `--base-path`)
 
 ## Development Setup
@@ -50,24 +50,22 @@ pre-commit install --hook-type commit-msg
 
 ### entitlements.py
 
-Set the `IDSTORE` environment variable to point to your terraform directory,
-or pass `--base-path`:
+Set the `ENTITLEMENTS_BASE_PATH` environment variable, or pass `--base-path`,
+to point to the terraform directory in your local copy of
+the Identity Center configuration repo:
 
 ```bash
-export IDSTORE=/path/to/terraform
+export ENTITLEMENTS_BASE_PATH=/path/to/terraform
 ```
 
 #### Query user permissions
 
 ```bash
-# By alias
-python entitlements.py user <alias>
+# By alias or email
+python entitlements.py user <alias | email>
 
 # By alias, filtered to a specific account
 python entitlements.py user <alias> <account_name>
-
-# By email
-python entitlements.py email <email>
 ```
 
 #### Audit account access
@@ -119,7 +117,7 @@ python entitlements.py interactive
 
 | Flag | Description |
 |------|-------------|
-| `--base-path` | Path to the terraform directory (overrides `IDSTORE`) |
+| `--base-path` | Path to the terraform directory (overrides `ENTITLEMENTS_BASE_PATH`) |
 | `--environment` | Environment name (default: `production`) |
 
 #### Exit codes
@@ -261,5 +259,5 @@ ct-entitlements-audit-tool/
 
 | Variable | Description |
 |----------|-------------|
-| `IDSTORE` | Path to the terraform identity store directory |
+| `ENTITLEMENTS_BASE_PATH` | Path to the terraform identity store directory |
 | `DEBUG` | Set to any value to enable debug logging |
