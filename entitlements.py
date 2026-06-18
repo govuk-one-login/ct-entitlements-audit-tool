@@ -84,7 +84,8 @@ def print_permissions(title: str, permissions: Dict[str, List[str]],
                         print(f"        -> {policy}")
 
 
-def cmd_user(model: EntitlementsModel, identifier: str, account: str = None, detailed: bool = False) -> bool:
+def cmd_user(model: EntitlementsModel, identifier: str, account: str = None,
+             detailed: bool = False, production_only: bool = False) -> bool:
     user_alias = resolve_user(model, identifier)
     if not user_alias:
         print(f"User '{identifier}' not found")
@@ -111,6 +112,8 @@ def cmd_user(model: EntitlementsModel, identifier: str, account: str = None, det
             for role in model.group_to_roles.get(group, []):
                 for ent in model.role_entitlements.get(role, []):
                     if account in ent.accounts:
+                        if production_only and ent.assignment_set != 'production':
+                            continue
                         by_type[ent.entitlement_type][ent.permission_set].append(
                             (group, role, ent.assignment_set)
                         )
@@ -143,14 +146,35 @@ def cmd_user(model: EntitlementsModel, identifier: str, account: str = None, det
                     for policy in details.inline_policies:
                         print(f"        → [inline] {policy}")
     else:
+        # When production_only, filter to only production assignment_set entitlements
+        if production_only:
+            standing = defaultdict(list)
+            eligible = defaultdict(list)
+            groups = model.user_to_groups.get(user_alias, [])
+            for group in groups:
+                for role in model.group_to_roles.get(group, []):
+                    for ent in model.role_entitlements.get(role, []):
+                        if ent.assignment_set != 'production':
+                            continue
+                        for acct in ent.accounts:
+                            if ent.entitlement_type == 'STANDING':
+                                standing[acct].append(ent.permission_set)
+                            else:
+                                eligible[acct].append(ent.permission_set)
+            standing_permissions = dict(standing)
+            eligible_permissions = dict(eligible)
+        else:
+            standing_permissions = perms.standing_permissions
+            eligible_permissions = perms.eligible_permissions
+
         print("Standing Permissions (Always Active):")
-        for acct, perms_list in sorted(perms.standing_permissions.items()):
+        for acct, perms_list in sorted(standing_permissions.items()):
             print(f"\n  {acct}:")
             for perm in set(perms_list):
                 print(f"    - {perm}")
 
         print("\n\nEligible Permissions (Request Required):")
-        for acct, perms_list in sorted(perms.eligible_permissions.items()):
+        for acct, perms_list in sorted(eligible_permissions.items()):
             print(f"\n  {acct}:")
             for perm in set(perms_list):
                 print(f"    - {perm}")
@@ -404,6 +428,7 @@ def build_parser() -> argparse.ArgumentParser:
     user_p.add_argument("identifier", help="User alias or email address")
     user_p.add_argument("account", nargs="?", default=None, help="Optional account filter")
     user_p.add_argument("--detailed", action="store_true", help="Show access chain trace for account permissions")
+    user_p.add_argument("--production-only", action="store_true", help="Only show production assignment permissions")
 
     account_p = sub.add_parser("account", help="Audit account access")
     account_p.add_argument("name", help="Account name")
@@ -440,7 +465,7 @@ def _dispatch_command(args: argparse.Namespace, model: EntitlementsModel) -> boo
         bool or None: handler result, or None for commands without a return value
     """
     dispatch = {
-        "user": lambda: cmd_user(model, args.identifier, args.account, args.detailed),
+        "user": lambda: cmd_user(model, args.identifier, args.account, args.detailed, args.production_only),
         "account": lambda: cmd_account(model, args.name),
         "role": lambda: cmd_role(model, args.name),
         "permission": lambda: cmd_permission(model, args.name),
