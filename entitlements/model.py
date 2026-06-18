@@ -194,28 +194,29 @@ class EntitlementsModel:
         if user_alias not in self.users:
             return None
 
-        groups = self.user_to_groups.get(user_alias, [])
+        groups = list(set(self.user_to_groups.get(user_alias, [])))
         roles = []
         for group in groups:
             roles.extend(self.group_to_roles.get(group, []))
+        roles = list(set(roles))
 
-        standing = defaultdict(list)
-        eligible = defaultdict(list)
+        standing = defaultdict(set)
+        eligible = defaultdict(set)
 
         for role in roles:
             for entitlement in self.role_entitlements.get(role, []):
                 for account in entitlement.accounts:
                     if entitlement.entitlement_type == 'STANDING':
-                        standing[account].append(entitlement.permission_set)
+                        standing[account].add(entitlement.permission_set)
                     else:
-                        eligible[account].append(entitlement.permission_set)
+                        eligible[account].add(entitlement.permission_set)
 
         return UserPermissions(
             user=user_alias,
             groups=groups,
-            roles=list(set(roles)),
-            standing_permissions=dict(standing),
-            eligible_permissions=dict(eligible)
+            roles=roles,
+            standing_permissions={k: sorted(v) for k, v in standing.items()},
+            eligible_permissions={k: sorted(v) for k, v in eligible.items()}
         )
 
     def get_users_with_access_to_account(self, account_name: str) -> List[str]:

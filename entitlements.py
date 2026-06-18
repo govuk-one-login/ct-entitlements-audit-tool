@@ -352,25 +352,36 @@ def csv_dump(model: EntitlementsModel, detailed: bool = False, users: str = None
     if detailed:
         writer.writerow(["user", "account", "permission_set", "type", "group", "role", "assignment_set"])
         for user_alias in user_list:
+            seen = set()
             groups = model.user_to_groups.get(user_alias, [])
             for group in groups:
                 for role in model.group_to_roles.get(group, []):
                     for ent in model.role_entitlements.get(role, []):
                         perm_type = "standing" if ent.entitlement_type == "STANDING" else "eligible"
                         for acct in ent.accounts:
-                            writer.writerow([user_alias, acct, ent.permission_set, perm_type, group, role, ent.assignment_set])
+                            row = (user_alias, acct, ent.permission_set, perm_type, group, role, ent.assignment_set)
+                            if row not in seen:
+                                seen.add(row)
+                                writer.writerow(row)
     else:
         writer.writerow(["user", "account", "permission_set", "type"])
         for user_alias in user_list:
             perms = model.get_user_permissions(user_alias)
             if not perms:
                 continue
+            seen = set()
             for acct, perms_list in sorted(perms.standing_permissions.items()):
                 for perm in perms_list:
-                    writer.writerow([user_alias, acct, perm, "standing"])
+                    row = (user_alias, acct, perm, "standing")
+                    if row not in seen:
+                        seen.add(row)
+                        writer.writerow(row)
             for acct, perms_list in sorted(perms.eligible_permissions.items()):
                 for perm in perms_list:
-                    writer.writerow([user_alias, acct, perm, "eligible"])
+                    row = (user_alias, acct, perm, "eligible")
+                    if row not in seen:
+                        seen.add(row)
+                        writer.writerow(row)
 
 
 def build_parser() -> argparse.ArgumentParser:
