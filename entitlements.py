@@ -433,7 +433,7 @@ def main():
         parser.print_help()
         sys.exit(3)
 
-    print(f"Loading entitlements from {base_path}, using environment {args.environment}")
+    print(f"Loading entitlements from {base_path}, using environment {args.environment}", file=sys.stderr)
     model = EntitlementsModel(base_path, environment=args.environment)
 
     if args.format == "csv":
