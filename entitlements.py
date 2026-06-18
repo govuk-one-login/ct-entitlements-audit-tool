@@ -28,12 +28,16 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
+import logging
 import os
 import sys
 from collections import defaultdict
 from pathlib import Path
 
-from entitlements import EntitlementsModel
+from entitlements import EntitlementsModel, export_data
+
+logger = logging.getLogger(__name__)
 
 RED = '\033[31m'
 RESET = '\033[0m'
@@ -219,6 +223,26 @@ def cmd_permission(model: EntitlementsModel, permission_name: str) -> bool:
     if roles_using:
         print(f"\n\nUsed by roles: {', '.join(roles_using)}")
 
+    return True
+
+
+def cmd_export(model: EntitlementsModel, export_filter: str) -> bool:
+    """Export entitlements data as JSON based on a filter.
+
+    Args:
+        model: EntitlementsModel instance with loaded data
+        export_filter: str filter specification (e.g. 'all', 'user=alias', 'roles')
+
+    Returns:
+        bool: True on success, False if the requested entity is not found
+    """
+    logger.info("Exporting with filter '%s'", export_filter)
+    data = export_data(model, export_filter)
+    if data is None:
+        logger.warning("Export returned no data for filter '%s'", export_filter)
+        print(f"Export failed: nothing found for filter '{export_filter}'")
+        return False
+    print(json.dumps(data, indent=2, sort_keys=True, default=str))
     return True
 
 
@@ -426,12 +450,51 @@ def build_parser() -> argparse.ArgumentParser:
     dump_p.add_argument("--users", help="Comma-separated list of users to include (default: all)")
     sub.add_parser("interactive", help="Interactive mode")
 
+    export_p = sub.add_parser("export", help="Export data as JSON")
+    export_p.add_argument(
+        "filter",
+        help="Filter: all, users, user=<alias>, groups, group=<name>, "
+            "roles, role=<name>, permissionsets, permissionset=<name>, "
+            "accounts, account=<name>"
+    )
+
     return parser
+
+
+def _dispatch_command(args: argparse.Namespace, model: EntitlementsModel) -> bool | None:
+    """Dispatch CLI command to the appropriate handler.
+
+    Args:
+        args: argparse.Namespace parsed CLI arguments
+        model: EntitlementsModel instance with loaded data
+
+    Returns:
+        bool or None: handler result, or None for commands without a return value
+    """
+    dispatch = {
+        "user": lambda: cmd_user(model, args.identifier, args.account, args.detailed),
+        "account": lambda: cmd_account(model, args.name),
+        "role": lambda: cmd_role(model, args.name),
+        "permission": lambda: cmd_permission(model, args.name),
+        "list-users": lambda: cmd_list_users(model),
+        "list-roles": lambda: cmd_list_roles(model),
+        "interactive": lambda: interactive_mode(model),
+        "export": lambda: cmd_export(model, args.filter),
+    }
+    handler = dispatch.get(args.command)
+    if handler:
+        return handler()
+    return None
 
 
 def main():
     parser = build_parser()
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if os.environ.get("DEBUG") else logging.INFO,
+        format="# %(levelname)s: %(name)s: %(message)s",
+    )
 
     if args.command is None:
         print(f"\n{RED}ERROR{RESET}: No command specified\n")
@@ -439,13 +502,24 @@ def main():
         sys.exit(2)
 
     base_path = args.base_path or os.environ.get("ENTITLEMENTS_BASE_PATH")
-    if not base_path or not Path(base_path).exists():
-        print(f"\n{RED}ERROR{RESET}: Base path does not exist: {base_path}\n")
+    if not base_path:
+        logger.error("No base path provided")
+        print(f"\n{RED}ERROR{RESET}: No base path provided\n", file=sys.stderr)
+        print("Set ENTITLEMENTS_BASE_PATH=... or use --base-path ...\n", file=sys.stderr)
         parser.print_help()
         sys.exit(3)
 
-    print(f"Loading entitlements from {base_path}, using environment {args.environment}", file=sys.stderr)
+    if not Path(base_path).exists():
+        logger.error("Base path does not exist: %s", base_path)
+        print(f"\n{RED}ERROR{RESET}: Base path does not exist: {base_path}\n", file=sys.stderr)
+        parser.print_help()
+        sys.exit(3)
+
+    logger.info("Loading entitlements from %s, environment=%s", base_path, args.environment)
     model = EntitlementsModel(base_path, environment=args.environment)
+    logger.info("Loaded %d users, %d groups, %d roles, %d permission sets",
+                len(model.users), len(model.groups),
+                len(model.role_entitlements), len(model.permissions))
 
     if args.format == "csv":
         if args.command == "user":
@@ -462,21 +536,7 @@ def main():
             print("CSV format not supported for this query type", file=sys.stderr)
         return
 
-    result = None
-    if args.command == "user":
-        result = cmd_user(model, args.identifier, args.account, args.detailed)
-    elif args.command == "account":
-        result = cmd_account(model, args.name)
-    elif args.command == "role":
-        result = cmd_role(model, args.name)
-    elif args.command == "permission":
-        result = cmd_permission(model, args.name)
-    elif args.command == "list-users":
-        cmd_list_users(model)
-    elif args.command == "list-roles":
-        cmd_list_roles(model)
-    elif args.command == "interactive":
-        interactive_mode(model)
+    result = _dispatch_command(args, model)
 
     if result is False:
         sys.exit(5)
