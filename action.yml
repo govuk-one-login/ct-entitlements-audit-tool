@@ -13,6 +13,10 @@ inputs:
     description: "Account name (only for 'user' query to filter by account)"
     required: false
     default: ""
+  detailed:
+    description: "Show access chain trace for user account permissions"
+    required: false
+    default: "false"
   base_path:
     description: "Path to the terraform directory containing entitlements data"
     required: false
@@ -40,6 +44,7 @@ runs:
         ARGS="--base-path ${{ inputs.base_path }} ${{ inputs.query_type }}"
         [ -n "${{ inputs.parameter }}" ] && ARGS="$ARGS ${{ inputs.parameter }}"
         [ -n "${{ inputs.account }}" ] && ARGS="$ARGS ${{ inputs.account }}"
+        [ "${{ inputs.detailed }}" = "true" ] && ARGS="$ARGS --detailed"
         echo "value=$ARGS" >> "$GITHUB_OUTPUT"
 
     - name: Run entitlements query
