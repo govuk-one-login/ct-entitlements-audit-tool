@@ -272,8 +272,13 @@ def csv_account(model: EntitlementsModel, account_name: str):
 def csv_list_users(model: EntitlementsModel):
     writer = csv.writer(sys.stdout)
     writer.writerow(["alias", "display_name", "email", "pod", "team"])
-    for user_alias, user_data in sorted(model.users.items()):
-        writer.writerow([user_alias, user_data['display_name'], user_data['email'], user_data['pod'], user_data['team']])
+    rows = []
+    for user_alias, user_data in model.users.items():
+        groups = model.user_to_groups.get(user_alias, [])
+        for group in groups:
+            rows.append([user_alias, user_data['display_name'], user_data['email'], user_data['pod'], group])
+    for row in sorted(rows):
+        writer.writerow(row)
 
 
 def csv_list_roles(model: EntitlementsModel):
