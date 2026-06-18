@@ -240,6 +240,7 @@ def main():
     parser.add_argument("after", help="Path to after CSV")
     parser.add_argument("--output", default="entitlements-diff.csv", help="Output CSV path")
     parser.add_argument("--summary", help="Path to write markdown summary")
+    parser.add_argument("--affected-users", help="Path to write comma-separated list of affected users")
     parser.add_argument("--account", help="Filter diff to a specific account")
     parser.add_argument("--user", help="Filter diff to a specific user/alias")
     args = parser.parse_args()
@@ -252,6 +253,18 @@ def main():
     changes = sort_changes(changes)
 
     write_csv(args.output, header, changes)
+
+    if args.affected_users:
+        lower = [h.lower() for h in header]
+        user_col = None
+        for field in ("user", "alias"):
+            if field in lower:
+                user_col = lower.index(field)
+                break
+        if user_col is not None:
+            users = sorted(set(change[1][user_col] for change in changes))
+            with open(args.affected_users, "w") as f:
+                f.write(",".join(users))
 
     if args.summary:
         write_summary(args.summary, header, changes)
