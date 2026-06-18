@@ -13,34 +13,10 @@ inputs:
     description: "Account name (only for 'user' query to filter by account)"
     required: false
     default: ""
-  detailed:
-    description: "Show access chain trace for user account permissions"
-    required: false
-    default: "false"
   base_path:
     description: "Path to the terraform directory containing entitlements data"
     required: false
     default: "terraform"
-  base_ref:
-    description: "Base branch for diff comparison"
-    required: false
-    default: ""
-  head_ref:
-    description: "Head branch for diff comparison"
-    required: false
-    default: ""
-  repository:
-    description: "Repository to checkout for diff (owner/repo)"
-    required: false
-    default: ${{ github.repository }}
-  upload_artifact:
-    description: "Whether to upload the CSV as an artifact"
-    required: false
-    default: "true"
-  write_summary:
-    description: "Whether to write output to the step summary"
-    required: false
-    default: "true"
 
 runs:
   using: composite
@@ -49,25 +25,21 @@ runs:
       shell: bash
       run: pip install pyyaml python-hcl2
 
-    # --- Diff mode ---
     - name: Checkout base branch
-      if: inputs.query_type == 'diff'
       uses: actions/checkout@v4
       with:
-        repository: ${{ inputs.repository }}
-        ref: ${{ inputs.base_ref }}
+        repository: ${{ github.repository }}
+        ref: main
         path: base
 
     - name: Checkout head branch
-      if: inputs.query_type == 'diff'
       uses: actions/checkout@v4
       with:
-        repository: ${{ inputs.repository }}
-        ref: ${{ inputs.head_ref }}
+        repository: ${{ github.repository }}
+        ref: hackathon-example-diff
         path: head
 
     - name: "Diff: Quick dump and identify affected users"
-      if: inputs.query_type == 'diff'
       shell: bash
       env:
         SCRIPTS: ${{ github.action_path }}
@@ -77,7 +49,6 @@ runs:
         python $SCRIPTS/diff.py before_quick.csv after_quick.csv --affected-users affected.txt
 
     - name: "Diff: Detailed dump for affected users"
-      if: inputs.query_type == 'diff'
       shell: bash
       env:
         SCRIPTS: ${{ github.action_path }}
@@ -92,46 +63,8 @@ runs:
         python $SCRIPTS/diff.py before_detailed.csv after_detailed.csv --output entitlements-diff.csv --summary "$GITHUB_STEP_SUMMARY"
 
     - name: Upload diff CSV artifact
-      if: inputs.query_type == 'diff' && inputs.upload_artifact == 'true'
       uses: actions/upload-artifact@v5
       with:
         name: entitlements-diff
         path: entitlements-diff.csv
         if-no-files-found: ignore
-
-    # --- Standard query mode ---
-    - name: Build query arguments
-      if: inputs.query_type != 'diff'
-      id: args
-      shell: bash
-      run: |
-        ARGS="--base-path ${{ inputs.base_path }} ${{ inputs.query_type }}"
-        [ -n "${{ inputs.parameter }}" ] && ARGS="$ARGS ${{ inputs.parameter }}"
-        [ -n "${{ inputs.account }}" ] && ARGS="$ARGS ${{ inputs.account }}"
-        echo "value=$ARGS" >> "$GITHUB_OUTPUT"
-
-    - name: Run entitlements query
-      if: inputs.query_type != 'diff'
-      shell: bash
-      run: |
-        EXTRA_ARGS=""
-        [ "${{ inputs.detailed }}" = "true" ] && EXTRA_ARGS="--detailed"
-        if [ "${{ inputs.write_summary }}" = "true" ]; then
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          python ${{ github.action_path }}/entitlements.py $EXTRA_ARGS ${{ steps.args.outputs.value }} | tee output.txt >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-        else
-          python ${{ github.action_path }}/entitlements.py $EXTRA_ARGS ${{ steps.args.outputs.value }} > output.txt
-        fi
-
-    - name: Generate CSV
-      if: inputs.query_type != 'diff'
-      shell: bash
-      run: python ${{ github.action_path }}/entitlements.py --format csv --detailed ${{ steps.args.outputs.value }} > entitlements-query-result.csv
-
-    - name: Upload CSV artifact
-      if: inputs.query_type != 'diff' && inputs.upload_artifact == 'true'
-      uses: actions/upload-artifact@v5
-      with:
-        name: entitlements-query-result
-        path: entitlements-query-result.csv
