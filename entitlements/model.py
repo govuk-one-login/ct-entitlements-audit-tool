@@ -93,8 +93,9 @@ class EntitlementsModel:
                 for group_name, group_config in groups_data.items():
                     self.groups[group_name] = group_config
                     self.group_to_roles[group_name] = group_config.get('roles', [])
-                    for collab in group_config.get('collaborators', []):
-                        self.user_to_groups[collab].append(group_name)
+                    for mtype in ['collaborators', 'permanent_members']:
+                        for member in group_config.get(mtype, []):
+                            self.user_to_groups[member].append(group_name)
 
     def _load_entitlements(self):
         for entitlements_file in self.env_path.rglob("entitlements*.yaml"):
