@@ -62,6 +62,28 @@ def resolve_user(model: EntitlementsModel, identifier: str) -> str | None:
     return None
 
 
+def print_permissions(title: str, permissions: Dict[str, List[str]],
+                    model: EntitlementsModel = None, show_policies: bool = False):
+    """Print a permissions section (standing or eligible).
+
+    Args:
+        title: str section title to display
+        permissions: Dict[str, List[str]] mapping account names to permission lists
+        model: EntitlementsModel optional, used to resolve policy details
+        show_policies: bool whether to expand managed policies for each permission
+    """
+    print(f"{title}:")
+    for account, perms_list in sorted(permissions.items()):
+        print(f"\n  {account}:")
+        for perm in perms_list:
+            print(f"    - {perm}")
+            if show_policies and model:
+                details = model.get_permission_details(perm)
+                if details:
+                    for policy in details.managed_policies:
+                        print(f"        -> {policy}")
+
+
 def cmd_user(model: EntitlementsModel, identifier: str, account: str = None, detailed: bool = False) -> bool:
     user_alias = resolve_user(model, identifier)
     if not user_alias:
@@ -121,11 +143,17 @@ def cmd_user(model: EntitlementsModel, identifier: str, account: str = None, det
                     for policy in details.inline_policies:
                         print(f"        → [inline] {policy}")
     else:
-        print_permissions("Standing Permissions (Always Active)",
-                        perms.standing_permissions)
-        print("\n")
-        print_permissions("Eligible Permissions (Request Required)",
-                        perms.eligible_permissions)
+        print("Standing Permissions (Always Active):")
+        for acct, perms_list in sorted(perms.standing_permissions.items()):
+            print(f"\n  {acct}:")
+            for perm in perms_list:
+                print(f"    - {perm}")
+
+        print("\n\nEligible Permissions (Request Required):")
+        for acct, perms_list in sorted(perms.eligible_permissions.items()):
+            print(f"\n  {acct}:")
+            for perm in perms_list:
+                print(f"    - {perm}")
 
     return True
 
@@ -412,8 +440,7 @@ def _dispatch_command(args: argparse.Namespace, model: EntitlementsModel) -> boo
         bool or None: handler result, or None for commands without a return value
     """
     dispatch = {
-        "user": lambda: cmd_user(model, args.alias, args.account),
-        "email": lambda: cmd_email(model, args.address),
+        "user": lambda: cmd_user(model, args.identifier, args.account, args.detailed),
         "account": lambda: cmd_account(model, args.name),
         "role": lambda: cmd_role(model, args.name),
         "permission": lambda: cmd_permission(model, args.name),
@@ -437,6 +464,9 @@ def main():
         level=logging.DEBUG if os.environ.get("DEBUG") else logging.INFO,
         format="# %(levelname)s: %(name)s: %(message)s",
     )
+
+    # In practice disable logging....
+    logging.getLogger().setLevel(logging.CRITICAL)
 
     if args.command is None:
         print(f"\n{RED}ERROR{RESET}: No command specified\n")
