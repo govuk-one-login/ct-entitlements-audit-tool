@@ -65,6 +65,29 @@ runs:
         echo "" >> "$GITHUB_STEP_SUMMARY"
         python $SCRIPTS/diff.py before_detailed.csv after_detailed.csv --output entitlements-diff.csv --summary "$GITHUB_STEP_SUMMARY"
 
+    - name: "Export: Full JSON export of affected users"
+      shell: bash
+      env:
+        SCRIPTS: ${{ github.action_path }}
+      run: |
+        if [ ! -s affected.txt ]; then
+          exit 0
+        fi
+        USERS=$(cat affected.txt)
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "## Export" >> "$GITHUB_STEP_SUMMARY"
+        echo "Full permissions for affected users on \`hackathon-example-diff\`" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        for USER in $(echo $USERS | tr ',' ' '); do
+          echo "<details><summary><b>$USER</b></summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          python $SCRIPTS/entitlements.py --base-path head/${{ inputs.base_path }} export user=$USER >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+        done
+
     - name: Upload diff CSV artifact
       uses: actions/upload-artifact@v5
       with:
