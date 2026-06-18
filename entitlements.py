@@ -53,7 +53,7 @@ def print_header(title: str):
 
 
 def print_permissions(title: str, permissions: Dict[str, List[str]],
-                      model: EntitlementsModel = None, show_policies: bool = False):
+                    model: EntitlementsModel = None, show_policies: bool = False):
     """Print a permissions section (standing or eligible).
 
     Args:
@@ -103,18 +103,18 @@ def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None) -> 
         print(f"Permissions in account '{account}':\n")
         if account in perms.standing_permissions:
             print_permissions("  Standing (Always Active)",
-                              {account: perms.standing_permissions[account]},
-                              model, show_policies=True)
+                            {account: perms.standing_permissions[account]},
+                            model, show_policies=True)
         if account in perms.eligible_permissions:
             print_permissions("\n  Eligible (Request Required)",
-                              {account: perms.eligible_permissions[account]},
-                              model, show_policies=True)
+                            {account: perms.eligible_permissions[account]},
+                            model, show_policies=True)
     else:
         print_permissions("Standing Permissions (Always Active)",
-                          perms.standing_permissions)
+                        perms.standing_permissions)
         print("\n")
         print_permissions("Eligible Permissions (Request Required)",
-                          perms.eligible_permissions)
+                        perms.eligible_permissions)
 
     return True
 
@@ -406,8 +406,8 @@ def build_parser() -> argparse.ArgumentParser:
     export_p.add_argument(
         "filter",
         help="Filter: all, users, user=<alias>, groups, group=<name>, "
-             "roles, role=<name>, permissionsets, permissionset=<name>, "
-             "accounts, account=<name>"
+            "roles, role=<name>, permissionsets, permissionset=<name>, "
+            "accounts, account=<name>"
     )
 
     return parser
@@ -456,6 +456,14 @@ def main():
         sys.exit(2)
 
     base_path = args.base_path or os.environ.get("ENTITLEMENTS_BASE_PATH")
+    if not base_path:
+        logger.error("No base path provided")
+        print(f"\n{RED}ERROR{RESET}: No base path provided\n", file=sys.stderr)
+        print("Set ENTITLEMENTS_BASE_PATH=... or use --base-path ...\n", file=sys.stderr)
+        print("To give path to checked-out repo terraform-aws-identitystore\n", file=sys.stderr)
+        parser.print_help()
+        sys.exit(3)
+
     if not Path(base_path).exists():
         logger.error("Base path does not exist: %s", base_path)
         print(f"\n{RED}ERROR{RESET}: Base path does not exist: {base_path}\n", file=sys.stderr)

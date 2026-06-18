@@ -137,7 +137,6 @@ class EntitlementsModel:
 
     def _load_groups(self):
         """Load groups from groups.yaml files."""
-        group_count = 0
         for groups_file in self.env_path.rglob("groups.yaml"):
             with open(groups_file, 'r') as f:
                 groups_data = yaml.safe_load(f)
