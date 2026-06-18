@@ -156,7 +156,7 @@ def write_summary(summary_path, header, changes):
 
 
 def _write_detailed_user_summary(f, header, lower, changes, has_chain):
-    """Write a rich summary grouped by user, showing accounts and permissions."""
+    """Write a rich summary grouped by user, showing accounts and permissions in tables."""
     user_col = lower.index("user") if "user" in lower else lower.index("alias")
     account_col = lower.index("account")
     perm_col = lower.index("permission_set")
@@ -164,6 +164,9 @@ def _write_detailed_user_summary(f, header, lower, changes, has_chain):
     group_col = lower.index("group") if has_chain else None
     role_col = lower.index("role") if has_chain else None
     assignment_col = lower.index("assignment_set") if has_chain else None
+
+    prod_indicators = ("prod", "production")
+    non_prod_indicators = ("non-prod", "nonprod", "non_prod", "sandbox", "demo", "dev", "build", "staging", "stage", "integration", "int")
 
     # Group changes by user
     by_user = defaultdict(list)
@@ -175,35 +178,32 @@ def _write_detailed_user_summary(f, header, lower, changes, has_chain):
         user_changes = sort_changes(by_user[user])
         f.write(f"### {user}\n\n")
 
-        # Sub-group by account
-        by_account = defaultdict(list)
+        if has_chain:
+            f.write("| Change | Account | Env | Permission Set | Type | Group | Role |\n")
+            f.write("|--------|---------|-----|----------------|------|-------|------|\n")
+        else:
+            f.write("| Change | Account | Env | Permission Set | Type |\n")
+            f.write("|--------|---------|-----|----------------|------|\n")
+
         for change in user_changes:
-            by_account[change[1][account_col]].append(change)
+            row = change[1]
+            action = change[0]
+            account = row[account_col]
+            perm = row[perm_col]
+            perm_type = row[type_col]
 
-        for account in sorted(by_account.keys()):
-            f.write(f"**Account: {account}**\n\n")
-            for change in by_account[account]:
-                row = change[1]
-                prefix = "+" if change[0] == "ADDED" else "-" if change[0] == "REMOVED" else "~"
-                perm = row[perm_col]
-                perm_type = row[type_col]
+            account_lower = account.lower()
+            is_prod = any(p in account_lower for p in prod_indicators) and not any(np in account_lower for np in non_prod_indicators)
+            env = "PROD" if is_prod else ""
 
-                if has_chain:
-                    chain = f"{row[group_col]} → {row[role_col]} → {row[assignment_col]}"
-                    f.write(f"- {prefix} **{change[0]}** `{perm}` ({perm_type}) via `{chain}`\n")
-                else:
-                    f.write(f"- {prefix} **{change[0]}** `{perm}` ({perm_type})\n")
+            if has_chain:
+                group = row[group_col]
+                role = row[role_col]
+                f.write(f"| {action} | `{account}` | {env} | `{perm}` | {perm_type} | {group} | {role} |\n")
+            else:
+                f.write(f"| {action} | `{account}` | {env} | `{perm}` | {perm_type} |\n")
 
-                if change[0] == "MODIFIED":
-                    old_row = change[2]
-                    diffs = []
-                    for i, (new, old) in enumerate(zip(row, old_row)):
-                        if new != old:
-                            diffs.append(f"{header[i]}: ~~{old}~~ → **{new}**")
-                    if diffs:
-                        f.write(f"  - Changed: {', '.join(diffs)}\n")
-
-            f.write("\n")
+        f.write("\n")
 
 
 def _write_table_summary(f, header, changes):
