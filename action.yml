@@ -60,6 +60,9 @@ runs:
         USERS=$(cat affected.txt)
         python $SCRIPTS/entitlements.py --format csv --detailed --base-path base/${{ inputs.base_path }} dump --users "$USERS" > before_detailed.csv
         python $SCRIPTS/entitlements.py --format csv --detailed --base-path head/${{ inputs.base_path }} dump --users "$USERS" > after_detailed.csv
+        echo "## Diff" >> "$GITHUB_STEP_SUMMARY"
+        echo "Comparing \`main\` → \`hackathon-example-diff\`" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
         python $SCRIPTS/diff.py before_detailed.csv after_detailed.csv --output entitlements-diff.csv --summary "$GITHUB_STEP_SUMMARY"
 
     - name: Upload diff CSV artifact
