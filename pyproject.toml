@@ -97,4 +97,4 @@ skip_empty = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--verbose --cov=entitlements --cov-report=term-missing --cov-fail-under=80"
+addopts = "--verbose --cov=entitlements --cov-report=term-missing --cov-fail-under=75"

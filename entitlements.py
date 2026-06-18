@@ -6,8 +6,8 @@ Queries user permissions across AWS accounts based on the Terraform
 Identity Center entitlements configuration.
 
 Usage:
-    python entitlements.py user <alias> [account]       # User permissions
-    python entitlements.py email <email>                # Lookup by email
+    python entitlements.py                              # Interactive mode
+    python entitlements.py user <alias|email> [account] # User permissions
     python entitlements.py account <account_name>       # Account access audit
     python entitlements.py role <role_name>             # Role details
     python entitlements.py permission <permission_name> # Permission set details
@@ -52,45 +52,23 @@ def print_header(title: str):
     print(f"{'='*80}\n")
 
 
-def print_permissions(title: str, permissions: Dict[str, List[str]],
-                    model: EntitlementsModel = None, show_policies: bool = False):
-    """Print a permissions section (standing or eligible).
-
-    Args:
-        title: str section title to display
-        permissions: Dict[str, List[str]] mapping account names to permission lists
-        model: EntitlementsModel optional, used to resolve policy details
-        show_policies: bool whether to expand managed policies for each permission
-    """
-    print(f"{title}:")
-    for account, perms_list in sorted(permissions.items()):
-        print(f"\n  {account}:")
-        for perm in perms_list:
-            print(f"    - {perm}")
-            if show_policies and model:
-                details = model.get_permission_details(perm)
-                if details:
-                    for policy in details.managed_policies:
-                        print(f"        -> {policy}")
+def resolve_user(model: EntitlementsModel, identifier: str) -> str | None:
+    """Resolve a user alias or email address to a user alias."""
+    if identifier in model.users:
+        return identifier
+    resolved = model.find_user_by_email(identifier)
+    if resolved:
+        return resolved
+    return None
 
 
-def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None) -> bool:
-    """Display permissions for a user.
-
-    Args:
-        model: EntitlementsModel instance
-        user_alias: str alias of the user to query
-        account: str optional account name to filter by
-
-    Returns:
-        bool: True if user found, False otherwise
-    """
-    logger.info("Querying user '%s'", user_alias)
-    perms = model.get_user_permissions(user_alias)
-    if not perms:
-        logger.warning("User '%s' not found", user_alias)
-        print(f"User '{user_alias}' not found")
+def cmd_user(model: EntitlementsModel, identifier: str, account: str = None, detailed: bool = False) -> bool:
+    user_alias = resolve_user(model, identifier)
+    if not user_alias:
+        print(f"User '{identifier}' not found")
         return False
+
+    perms = model.get_user_permissions(user_alias)
 
     user_data = model.users[user_alias]
     print_header(f"User: {user_data['display_name']} ({user_alias})")
@@ -101,14 +79,47 @@ def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None) -> 
 
     if account:
         print(f"Permissions in account '{account}':\n")
-        if account in perms.standing_permissions:
-            print_permissions("  Standing (Always Active)",
-                            {account: perms.standing_permissions[account]},
-                            model, show_policies=True)
-        if account in perms.eligible_permissions:
-            print_permissions("\n  Eligible (Request Required)",
-                            {account: perms.eligible_permissions[account]},
-                            model, show_policies=True)
+
+        # Build the access chain: group -> role -> entitlement for this account
+        # Deduplicate by permission set, collecting all granting paths
+        groups = model.user_to_groups.get(user_alias, [])
+        by_type = {'STANDING': defaultdict(list), 'ELIGIBLE': defaultdict(list)}
+
+        for group in groups:
+            for role in model.group_to_roles.get(group, []):
+                for ent in model.role_entitlements.get(role, []):
+                    if account in ent.accounts:
+                        by_type[ent.entitlement_type][ent.permission_set].append(
+                            (group, role, ent.assignment_set)
+                        )
+
+        if by_type['STANDING']:
+            print("  Standing (Always Active):")
+            for perm_set, paths in sorted(by_type['STANDING'].items()):
+                print(f"\n    - {perm_set}")
+                if detailed:
+                    for group, role, assignment_set in paths:
+                        print(f"        User '{user_alias}' → Group '{group}' → Role '{role}' → Assignment '{assignment_set}' → Account '{account}'")
+                details = model.get_permission_details(perm_set)
+                if details:
+                    for policy in details.managed_policies:
+                        print(f"        → {policy}")
+                    for policy in details.inline_policies:
+                        print(f"        → [inline] {policy}")
+
+        if by_type['ELIGIBLE']:
+            print("\n  Eligible (Request Required):")
+            for perm_set, paths in sorted(by_type['ELIGIBLE'].items()):
+                print(f"    - {perm_set}")
+                if detailed:
+                    for group, role, assignment_set in paths:
+                        print(f"        User '{user_alias}' → Group '{group}' → Role '{role}' → Assignment '{assignment_set}' → Account '{account}'")
+                details = model.get_permission_details(perm_set)
+                if details:
+                    for policy in details.managed_policies:
+                        print(f"        → {policy}")
+                    for policy in details.inline_policies:
+                        print(f"        → [inline] {policy}")
     else:
         print_permissions("Standing Permissions (Always Active)",
                         perms.standing_permissions)
@@ -118,24 +129,6 @@ def cmd_user(model: EntitlementsModel, user_alias: str, account: str = None) -> 
 
     return True
 
-
-def cmd_email(model: EntitlementsModel, email: str) -> bool:
-    """Look up a user by email and display their permissions.
-
-    Args:
-        model: EntitlementsModel instance
-        email: str email address to search for
-
-    Returns:
-        bool: True if user found, False otherwise
-    """
-    logger.info("Looking up user by email '%s'", email)
-    user_alias = model.find_user_by_email(email)
-    if not user_alias:
-        logger.warning("No user found with email '%s'", email)
-        print(f"No user found with email: {email}")
-        return False
-    return cmd_user(model, user_alias)
 
 
 def cmd_account(model: EntitlementsModel, account_name: str) -> bool:
@@ -329,34 +322,31 @@ def interactive_mode(model: EntitlementsModel):
 
     while True:
         print("\nAvailable queries:")
-        print("  1. User permissions (by alias)")
-        print("  2. User permissions (by email)")
-        print("  3. Account access audit")
-        print("  4. Role details")
-        print("  5. Permission set details")
-        print("  6. List all users")
-        print("  7. List all roles")
+        print("  1. User permissions (by alias or email)")
+        print("  2. Account access audit")
+        print("  3. Role details")
+        print("  4. Permission set details")
+        print("  5. List all users")
+        print("  6. List all roles")
         print("  0. Exit")
 
-        choice = input("\nSelect query type (0-7): ").strip()
+        choice = input("\nSelect query type (0-6): ").strip()
 
         if choice == '0':
             break
         elif choice == '1':
-            alias = input("Enter user alias: ").strip()
+            identifier = input("Enter user alias or email: ").strip()
             account = input("Enter account name (or press Enter for all): ").strip()
-            cmd_user(model, alias, account or None)
+            cmd_user(model, identifier, account or None)
         elif choice == '2':
-            cmd_email(model, input("Enter email: ").strip())
-        elif choice == '3':
             cmd_account(model, input("Enter account name: ").strip())
-        elif choice == '4':
+        elif choice == '3':
             cmd_role(model, input("Enter role name: ").strip())
-        elif choice == '5':
+        elif choice == '4':
             cmd_permission(model, input("Enter permission set name: ").strip())
-        elif choice == '6':
+        elif choice == '5':
             cmd_list_users(model)
-        elif choice == '7':
+        elif choice == '6':
             cmd_list_roles(model)
         else:
             print("Invalid choice")
@@ -382,12 +372,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub = parser.add_subparsers(dest="command")
 
-    user_p = sub.add_parser("user", help="Query user permissions by alias")
-    user_p.add_argument("alias", help="User alias")
+    user_p = sub.add_parser("user", help="Query user permissions by alias or email")
+    user_p.add_argument("identifier", help="User alias or email address")
     user_p.add_argument("account", nargs="?", default=None, help="Optional account filter")
-
-    email_p = sub.add_parser("email", help="Query user permissions by email")
-    email_p.add_argument("address", help="User email address")
+    user_p.add_argument("--detailed", action="store_true", help="Show access chain trace for account permissions")
 
     account_p = sub.add_parser("account", help="Audit account access")
     account_p.add_argument("name", help="Account name")
