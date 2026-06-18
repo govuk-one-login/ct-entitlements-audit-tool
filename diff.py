@@ -122,7 +122,7 @@ def write_csv(output_path, header, changes):
                 w.writerow([change[0]] + list(change[1]))
 
 
-def write_summary(summary_path, header, changes):
+def write_summary(summary_path, header, changes, before=None, after=None) -> None:
     with open(summary_path, "a") as f:
         if not changes:
             f.write("No entitlement changes detected.\n")
@@ -150,12 +150,12 @@ def write_summary(summary_path, header, changes):
         has_chain = "group" in lower and "role" in lower and "assignment_set" in lower
 
         if has_user and has_account and has_permission:
-            _write_detailed_user_summary(f, header, lower, changes, has_chain)
+            _write_detailed_user_summary(f, header, lower, changes, has_chain, before, after)
         else:
             _write_table_summary(f, header, changes)
 
 
-def _write_detailed_user_summary(f, header, lower, changes, has_chain):
+def _write_detailed_user_summary(f, header, lower, changes, has_chain, before=None, after=None):
     """Write a rich summary grouped by user, showing accounts and permissions in tables."""
     user_col = lower.index("user") if "user" in lower else lower.index("alias")
     account_col = lower.index("account")
@@ -168,6 +168,15 @@ def _write_detailed_user_summary(f, header, lower, changes, has_chain):
     prod_indicators = ("prod", "production")
     non_prod_indicators = ("non-prod", "nonprod", "non_prod", "sandbox", "demo", "dev", "build", "staging", "stage", "integration", "int")
 
+    # Build per-user group sets from before/after for root cause detection
+    before_groups_by_user = defaultdict(set)
+    after_groups_by_user = defaultdict(set)
+    if has_chain and before and after:
+        for row in before:
+            before_groups_by_user[row[user_col]].add(row[group_col])
+        for row in after:
+            after_groups_by_user[row[user_col]].add(row[group_col])
+
     # Group changes by user
     by_user = defaultdict(list)
     for change in changes:
@@ -178,25 +187,25 @@ def _write_detailed_user_summary(f, header, lower, changes, has_chain):
         user_changes = sort_changes(by_user[user])
         f.write(f"### {user}\n\n")
 
-        # Identify root cause: which new groups/roles caused the additions
+        # Identify root cause: which NEW groups/roles caused the additions
         if has_chain:
-            added_groups = set()
-            added_roles = set()
-            for change in user_changes:
-                if change[0] == "ADDED":
-                    added_groups.add(change[1][group_col])
-                    added_roles.add(change[1][role_col])
-            if added_groups:
+            new_groups = after_groups_by_user[user] - before_groups_by_user[user]
+            if new_groups:
+                # Only show roles from the new groups
+                new_roles = set()
+                for change in user_changes:
+                    if change[0] == "ADDED" and change[1][group_col] in new_groups:
+                        new_roles.add(change[1][role_col])
                 f.write("**Cause:** User added to group")
-                if len(added_groups) == 1:
-                    f.write(f" `{next(iter(added_groups))}`")
+                if len(new_groups) == 1:
+                    f.write(f" `{next(iter(sorted(new_groups)))}`")
                 else:
-                    f.write(f"s {', '.join(f'`{g}`' for g in sorted(added_groups))}")
+                    f.write(f"s {', '.join(f'`{g}`' for g in sorted(new_groups))}")
                 f.write(f", granting role")
-                if len(added_roles) == 1:
-                    f.write(f" `{next(iter(added_roles))}`")
+                if len(new_roles) == 1:
+                    f.write(f" `{next(iter(sorted(new_roles)))}`")
                 else:
-                    f.write(f"s {', '.join(f'`{r}`' for r in sorted(added_roles))}")
+                    f.write(f"s {', '.join(f'`{r}`' for r in sorted(new_roles))}")
                 f.write("\n\n")
 
         if has_chain:
@@ -289,7 +298,7 @@ def main():
                 f.write(",".join(users))
 
     if args.summary:
-        write_summary(args.summary, header, changes)
+        write_summary(args.summary, header, changes, before=before, after=after)
 
 
 if __name__ == "__main__":
