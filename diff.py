@@ -15,18 +15,19 @@ def load(path):
 def detect_key_columns(header):
     """Determine which columns form the identity key vs mutable attributes.
 
-    For user-permission CSVs (user, account, permission_set, type): key is user+account+permission_set.
-    For list-users CSVs (alias, display_name, email, pod, team): key is alias+pod+team
-    (a user can belong to multiple teams).
+    For detailed user-permission CSVs: entire row is the key (no MODIFIED, only ADDED/REMOVED).
+    For simple user-permission CSVs (user, account, permission_set, type): entire row is the key.
+    For list-users CSVs (alias, display_name, email, pod, team): key is alias+pod+team.
     """
     lower = [h.lower() for h in header]
     if "alias" in lower and "pod" in lower and "team" in lower:
         return [lower.index("alias"), lower.index("pod"), lower.index("team")]
+    # For permission CSVs (with or without chain columns), treat entire row as key
+    # This ensures adding a user to a new group shows as ADDED, not MODIFIED
+    if "user" in lower and "account" in lower and "permission_set" in lower:
+        return list(range(len(header)))
     if "alias" in lower:
         return [lower.index("alias")]
-    if "user" in lower and "account" in lower and "permission_set" in lower:
-        return [lower.index("user"), lower.index("account"), lower.index("permission_set")]
-    # Default: entire row is the key (no MODIFIED detection)
     return list(range(len(header)))
 
 
