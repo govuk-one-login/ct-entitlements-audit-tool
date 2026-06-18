@@ -1,5 +1,12 @@
 # https://gds-way.digital.cabinet-office.gov.uk/manuals/programming-languages/python/python.html#how-to-use-ruff
 
+[project]
+name = "ct-entitlements-audit-tool"
+version = "0.1.0"
+description = "Entitlements CLI auditing/diff-reporting for terraform-aws-identitystore"
+readme = "README.md"
+requires-python = ">=3.12"
+
 [tool.ruff]
 exclude = []
 # Same as Black.
@@ -73,6 +80,21 @@ docstring-code-format = true
 # enabled.
 docstring-code-line-length = "dynamic"
 
+[tool.coverage.run]
+command_line = "--module pytest --verbose"
+
+# [tool.coverage.paths]
+# source = [
+#   ".",
+#   "entitlements/",
+# ]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = false
+skip_empty = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=entitlements --cov-report=term-missing --cov-fail-under=75"
+addopts = "--verbose --cov=entitlements --cov-report=term-missing --cov-fail-under=75"

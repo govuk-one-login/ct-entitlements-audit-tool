@@ -15,4 +15,8 @@ tfplan
 **/venv
 **/__pycache__/
 
+# Ignore coverage
 .coverage
+
+# Ignore direnv
+.envrc

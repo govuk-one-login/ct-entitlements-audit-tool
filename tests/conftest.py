@@ -1,6 +1,6 @@
+
 import pytest
 import yaml
-from pathlib import Path
 
 
 TEAM_CSV = """\
