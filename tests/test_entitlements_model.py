@@ -38,8 +38,9 @@ class TestLoadGroups:
         assert "alpha-team-two" in model.groups
 
     def test_group_to_roles_mapping(self, model):
-        assert model.group_to_roles["alpha-team-one"] == ["team-one", "team-two"]
-        assert model.group_to_roles["alpha-team-two"] == ["team-two"]
+        assert model.group_to_roles["alpha-team-one"] == ["team-one-engineers", "team-two-engineers"]
+        assert model.group_to_roles["alpha-team-two"] == ["team-two-engineers"]
+        assert model.group_to_roles["beta-team-one"] == ["dev-only-engineers"]
 
     def test_collaborators_added_to_user_groups(self, model):
         assert "alpha-team-one" in model.user_to_groups["charlie"]
@@ -50,7 +51,7 @@ class TestLoadGroups:
 
 class TestLoadEntitlements:
     def test_loads_dev_permissions(self, model):
-        team_one_entitlements = model.role_entitlements["team-one"]
+        team_one_entitlements = model.role_entitlements["team-one-engineers"]
         dev_assignments = [e for e in team_one_entitlements if e.assignment_set == "development"]
         standing = [e for e in dev_assignments if e.entitlement_type == "STANDING"]
         eligible = [e for e in dev_assignments if e.entitlement_type == "ELIGIBLE"]
@@ -60,7 +61,7 @@ class TestLoadEntitlements:
         assert standing[0].org_units == ["dev-ou"]
 
     def test_loads_non_prod_permissions(self, model):
-        team_one_entitlements = model.role_entitlements["team-one"]
+        team_one_entitlements = model.role_entitlements["team-one-engineers"]
         non_prod_assignments = [e for e in team_one_entitlements if e.assignment_set == "non-production"]
         standing = [e for e in non_prod_assignments if e.entitlement_type == "STANDING"]
         eligible = [e for e in non_prod_assignments if e.entitlement_type == "ELIGIBLE"]
@@ -71,7 +72,7 @@ class TestLoadEntitlements:
         assert standing[0].org_units == ["staging-ou"]
 
     def test_loads_prod_permissions(self, model):
-        team_one_entitlements = model.role_entitlements["team-one"]
+        team_one_entitlements = model.role_entitlements["team-one-engineers"]
         prod_assignments = [e for e in team_one_entitlements if e.assignment_set == "production"]
         standing = [e for e in prod_assignments if e.entitlement_type == "STANDING"]
         eligible = [e for e in prod_assignments if e.entitlement_type == "ELIGIBLE"]
@@ -81,7 +82,7 @@ class TestLoadEntitlements:
         assert eligible[0].accounts == ["prod-account-a"]
 
     def test_skips_emergency_access(self, model):
-        team_one_entitlements = model.role_entitlements["team-one"]
+        team_one_entitlements = model.role_entitlements["team-one-engineers"]
         assert not any(e.permission_set == "EmergencyAdmin" for e in team_one_entitlements)
 
 

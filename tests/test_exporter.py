@@ -75,7 +75,7 @@ class TestExportDataFilters:
         result = export_data(model, "roles")
         assert isinstance(result, list)
         names = [role["name"] for role in result]
-        assert "team-one" in names
+        assert "team-one-engineers" in names
 
     def test_export_permissionsets_returns_list(self, model):
         """Verify 'permissionsets' filter returns a list of permission set dicts."""
@@ -150,8 +150,8 @@ class TestExportGroup:
     def test_export_group_contains_roles(self, model):
         """Verify group export lists its roles."""
         result = export_data(model, "group=alpha-team-one")
-        assert "team-one" in result["roles"]
-        assert "team-two" in result["roles"]
+        assert "team-one-engineers" in result["roles"]
+        assert "team-two-engineers" in result["roles"]
 
     def test_export_nonexistent_group_returns_none(self, model):
         """Verify exporting an unknown group returns None."""
@@ -164,21 +164,21 @@ class TestExportRole:
 
     def test_export_existing_role(self, model):
         """Verify exporting a known role returns correct fields."""
-        result = export_data(model, "role=team-one")
-        assert result["name"] == "team-one"
+        result = export_data(model, "role=team-one-engineers")
+        assert result["name"] == "team-one-engineers"
         assert "groups" in result
         assert "entitlements" in result
 
     def test_export_role_has_entitlements(self, model):
         """Verify role export contains entitlement entries."""
-        result = export_data(model, "role=team-one")
+        result = export_data(model, "role=team-one-engineers")
         assert len(result["entitlements"]) > 0
         perm_sets = [ent["permission_set"] for ent in result["entitlements"]]
         assert "Admin" in perm_sets
 
     def test_export_role_lists_groups(self, model):
         """Verify role export lists groups that include it."""
-        result = export_data(model, "role=team-one")
+        result = export_data(model, "role=team-one-engineers")
         assert "alpha-team-one" in result["groups"]
 
     def test_export_nonexistent_role_returns_none(self, model):
@@ -202,7 +202,7 @@ class TestExportPermissionSet:
     def test_export_permissionset_used_by_roles(self, model):
         """Verify permission set lists roles that use it."""
         result = export_data(model, "permissionset=ViewOnly")
-        assert "team-one" in result["used_by_roles"]
+        assert "team-one-engineers" in result["used_by_roles"]
 
     def test_export_nonexistent_permissionset_returns_none(self, model):
         """Verify exporting an unknown permission set returns None."""

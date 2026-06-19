@@ -333,17 +333,38 @@ def cmd_export(model: EntitlementsModel, export_filter: str) -> bool:
     return True
 
 
-def cmd_list_users(model: EntitlementsModel):
+def cmd_list_users(model: EntitlementsModel, production_only: bool = False):
     """List all users grouped by pod.
 
     Args:
         model: EntitlementsModel instance
+        production_only: bool if True, only show users with production assignment access
     """
-    print_header(f"All Users ({len(model.users)})")
+    if production_only:
+        production_users = set()
+        for user_alias in model.users:
+            groups = model.user_to_groups.get(user_alias, [])
+            for group in groups:
+                for role in model.group_to_roles.get(group, []):
+                    for ent in model.role_entitlements.get(role, []):
+                        if ent.assignment_set == 'production' or ent.assignment_set == 'organization':
+                            production_users.add(user_alias)
+                            break
+                    if user_alias in production_users:
+                        break
+                if user_alias in production_users:
+                    break
 
-    by_pod = defaultdict(list)
-    for user_alias, user_data in model.users.items():
-        by_pod[user_data['pod']].append((user_data['display_name'], user_alias, user_data['team']))
+        print_header(f"Users with Production Access ({len(production_users)})")
+        by_pod = defaultdict(list)
+        for user_alias in production_users:
+            user_data = model.users[user_alias]
+            by_pod[user_data['pod']].append((user_data['display_name'], user_alias, user_data['team']))
+    else:
+        print_header(f"All Users ({len(model.users)})")
+        by_pod = defaultdict(list)
+        for user_alias, user_data in model.users.items():
+            by_pod[user_data['pod']].append((user_data['display_name'], user_alias, user_data['team']))
 
     for pod, users in sorted(by_pod.items()):
         print(f"\n{pod.upper()}:")
@@ -439,7 +460,8 @@ def build_parser() -> argparse.ArgumentParser:
     perm_p = sub.add_parser("permission", help="Show permission set details")
     perm_p.add_argument("name", help="Permission set name")
 
-    sub.add_parser("list-users", help="List all users")
+    list_users_p = sub.add_parser("list-users", help="List all users")
+    list_users_p.add_argument("--production-only", action="store_true", help="Only show users with production assignment access")
     sub.add_parser("list-roles", help="List all roles")
     sub.add_parser("interactive", help="Interactive mode")
 
@@ -469,7 +491,7 @@ def _dispatch_command(args: argparse.Namespace, model: EntitlementsModel) -> boo
         "account": lambda: cmd_account(model, args.name),
         "role": lambda: cmd_role(model, args.name),
         "permission": lambda: cmd_permission(model, args.name),
-        "list-users": lambda: cmd_list_users(model),
+        "list-users": lambda: cmd_list_users(model, args.production_only),
         "list-roles": lambda: cmd_list_roles(model),
         "interactive": lambda: interactive_mode(model),
         "export": lambda: cmd_export(model, args.filter),

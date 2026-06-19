@@ -48,35 +48,35 @@ class TestCmdListRoles:
     def test_prints_header_with_role_count(self, model, capsys):
         cmd_list_roles(model)
         output = capsys.readouterr().out
-        assert "All Roles (2)" in output
+        assert "All Roles (3)" in output
 
     def test_lists_roles_alphabetically(self, model, capsys):
         cmd_list_roles(model)
         output = capsys.readouterr().out
-        team_one_pos = output.index("team-one")
-        team_two_pos = output.index("team-two")
+        team_one_pos = output.index("team-one-engineers")
+        team_two_pos = output.index("team-two-engineers")
         assert team_one_pos < team_two_pos
 
     def test_shows_group_count_for_role(self, model, capsys):
         cmd_list_roles(model)
         output = capsys.readouterr().out
-        assert "team-one" in output
+        assert "team-one-engineers" in output
         assert "(used by 1 group(s))" in output
-        # team-two is used by alpha-team-one and alpha-team-two (2 groups)
+        # team-two-engineers is used by alpha-team-one and alpha-team-two (2 groups)
         assert "(used by 2 group(s))" in output
 
     def test_lists_all_roles(self, model, capsys):
         cmd_list_roles(model)
         output = capsys.readouterr().out
-        assert "team-one" in output
-        assert "team-two" in output
+        assert "team-one-engineers" in output
+        assert "team-two-engineers" in output
 
 
 class TestCmdListUsers:
     def test_prints_header_with_user_count(self, model, capsys):
         cmd_list_users(model)
         output = capsys.readouterr().out
-        assert "All Users (2)" in output
+        assert "All Users (3)" in output
 
     def test_groups_users_by_pod(self, model, capsys):
         cmd_list_users(model)
@@ -128,7 +128,7 @@ class TestCmdPermission:
         cmd_permission(model, "ViewOnly")
         output = capsys.readouterr().out
         assert "Used by roles:" in output
-        assert "team-one" in output
+        assert "team-one-engineers" in output
 
     def test_returns_true_for_known_permission(self, model):
         assert cmd_permission(model, "ViewOnly")
@@ -140,6 +140,27 @@ class TestCmdPermission:
         cmd_permission(model, "NonExistent")
         output = capsys.readouterr().out
         assert "not found" in output
+
+
+class TestCmdListUsersProductionOnly:
+    def test_production_only_shows_users_with_production_access(self, model, capsys):
+        cmd_list_users(model, production_only=True)
+        output = capsys.readouterr().out
+        # alice and bob both have production access via team-one and team-two roles
+        assert "alice" in output
+        assert "bob" in output
+
+    def test_production_only_header_shows_filtered_count(self, model, capsys):
+        cmd_list_users(model, production_only=True)
+        output = capsys.readouterr().out
+        assert "Users with Production Access" in output
+
+    def test_production_only_excludes_users_without_production(self, model, capsys):
+        cmd_list_users(model, production_only=True)
+        output = capsys.readouterr().out
+        # nopr only has dev-only-role with development assignment_set
+        assert "nopr" not in output
+        assert "alice" in output
 
 
 class TestCmdUserProductionOnly:
