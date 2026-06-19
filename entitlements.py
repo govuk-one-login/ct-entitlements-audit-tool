@@ -85,7 +85,8 @@ def print_permissions(title: str, permissions: Dict[str, List[str]],
 
 
 def cmd_user(model: EntitlementsModel, identifier: str, account: str = None,
-             detailed: bool = False, production_only: bool = False) -> bool:
+             detailed: bool = False, production_only: bool = False,
+             entitlement_type: str = None) -> bool:
     user_alias = resolve_user(model, identifier)
     if not user_alias:
         print(f"User '{identifier}' not found")
@@ -118,7 +119,7 @@ def cmd_user(model: EntitlementsModel, identifier: str, account: str = None,
                             (group, role, ent.assignment_set)
                         )
 
-        if by_type['STANDING']:
+        if by_type['STANDING'] and entitlement_type != 'ELIGIBLE':
             print("  Standing (Always Active):")
             for perm_set, paths in sorted(by_type['STANDING'].items()):
                 print(f"\n    - {perm_set}")
@@ -132,8 +133,8 @@ def cmd_user(model: EntitlementsModel, identifier: str, account: str = None,
                     for policy in details.inline_policies:
                         print(f"        → [inline] {policy}")
 
-        if by_type['ELIGIBLE']:
-            print("\n  Eligible (Request Required):")
+        if by_type['ELIGIBLE'] and entitlement_type != 'STANDING':
+            print("\n  Eligible (TEAM Request required):")
             for perm_set, paths in sorted(by_type['ELIGIBLE'].items()):
                 print(f"    - {perm_set}")
                 if detailed:
@@ -167,28 +168,32 @@ def cmd_user(model: EntitlementsModel, identifier: str, account: str = None,
             standing_permissions = perms.standing_permissions
             eligible_permissions = perms.eligible_permissions
 
-        print("Standing Permissions (Always Active):")
-        for acct, perms_list in sorted(standing_permissions.items()):
-            print(f"\n  {acct}:")
-            for perm in set(perms_list):
-                print(f"    - {perm}")
+        if entitlement_type != 'ELIGIBLE':
+            print("Standing Permissions (Always Active):")
+            for acct, perms_list in sorted(standing_permissions.items()):
+                print(f"\n  {acct}:")
+                for perm in set(perms_list):
+                    print(f"    - {perm}")
 
-        print("\n\nEligible Permissions (Request Required):")
-        for acct, perms_list in sorted(eligible_permissions.items()):
-            print(f"\n  {acct}:")
-            for perm in set(perms_list):
-                print(f"    - {perm}")
+        if entitlement_type != 'STANDING':
+            print("\n\nEligible Permissions (TEAM Request required):")
+            for acct, perms_list in sorted(eligible_permissions.items()):
+                print(f"\n  {acct}:")
+                for perm in set(perms_list):
+                    print(f"    - {perm}")
 
     return True
 
 
 
-def cmd_account(model: EntitlementsModel, account_name: str) -> bool:
+def cmd_account(model: EntitlementsModel, account_name: str,
+                entitlement_type: str = None) -> bool:
     """Audit access for an account.
 
     Args:
         model: EntitlementsModel instance
         account_name: str name of the account to audit
+        entitlement_type: str optional, 'STANDING' or 'ELIGIBLE' to filter output
 
     Returns:
         bool: True if account has users, False otherwise
@@ -215,17 +220,19 @@ def cmd_account(model: EntitlementsModel, account_name: str) -> bool:
         if account_name in perms.eligible_permissions:
             eligible_users.append((user_data['display_name'], user_alias, perms.eligible_permissions[account_name]))
 
-    print(f"Standing Access ({len(standing_users)} users):")
-    for name, alias, permissions in standing_users:
-        print(f"\n  {name} ({alias})")
-        for perm in set(permissions):
-            print(f"    - {perm}")
+    if entitlement_type != 'ELIGIBLE':
+        print(f"Standing Access ({len(standing_users)} users):")
+        for name, alias, permissions in standing_users:
+            print(f"\n  {name} ({alias})")
+            for perm in set(permissions):
+                print(f"    - {perm}")
 
-    print(f"\n\nEligible Access ({len(eligible_users)} users):")
-    for name, alias, permissions in eligible_users:
-        print(f"\n  {name} ({alias})")
-        for perm in set(permissions):
-            print(f"    - {perm}")
+    if entitlement_type != 'STANDING':
+        print(f"\n\nEligible Access ({len(eligible_users)} users):")
+        for name, alias, permissions in eligible_users:
+            print(f"\n  {name} ({alias})")
+            for perm in set(permissions):
+                print(f"    - {perm}")
 
     return True
 
@@ -333,31 +340,44 @@ def cmd_export(model: EntitlementsModel, export_filter: str) -> bool:
     return True
 
 
-def cmd_list_users(model: EntitlementsModel, production_only: bool = False):
+def cmd_list_users(model: EntitlementsModel, production_only: bool = False,
+                   entitlement_type: str = None):
     """List all users grouped by pod.
 
     Args:
         model: EntitlementsModel instance
         production_only: bool if True, only show users with production assignment access
+        entitlement_type: str optional, 'STANDING' or 'ELIGIBLE' to filter users
     """
-    if production_only:
-        production_users = set()
+    if production_only or entitlement_type:
+        matching_users = set()
         for user_alias in model.users:
             groups = model.user_to_groups.get(user_alias, [])
+            found = False
             for group in groups:
                 for role in model.group_to_roles.get(group, []):
                     for ent in model.role_entitlements.get(role, []):
-                        if ent.assignment_set == 'production' or ent.assignment_set == 'organization':
-                            production_users.add(user_alias)
-                            break
-                    if user_alias in production_users:
+                        if production_only and ent.assignment_set != 'production':
+                            continue
+                        if entitlement_type and ent.entitlement_type != entitlement_type:
+                            continue
+                        matching_users.add(user_alias)
+                        found = True
                         break
-                if user_alias in production_users:
+                    if found:
+                        break
+                if found:
                     break
 
-        print_header(f"Users with Production Access ({len(production_users)})")
+        title_parts = []
+        if production_only:
+            title_parts.append("Production")
+        if entitlement_type:
+            title_parts.append(entitlement_type.capitalize())
+        title = f"Users with {' '.join(title_parts)} Access ({len(matching_users)})"
+        print_header(title)
         by_pod = defaultdict(list)
-        for user_alias in production_users:
+        for user_alias in matching_users:
             user_data = model.users[user_alias]
             by_pod[user_data['pod']].append((user_data['display_name'], user_alias, user_data['team']))
     else:
@@ -450,9 +470,15 @@ def build_parser() -> argparse.ArgumentParser:
     user_p.add_argument("account", nargs="?", default=None, help="Optional account filter")
     user_p.add_argument("--detailed", action="store_true", help="Show access chain trace for account permissions")
     user_p.add_argument("--production-only", action="store_true", help="Only show production assignment permissions")
+    user_type_group = user_p.add_mutually_exclusive_group()
+    user_type_group.add_argument("--standing", action="store_true", help="Only show standing permissions")
+    user_type_group.add_argument("--eligible", action="store_true", help="Only show eligible permissions")
 
     account_p = sub.add_parser("account", help="Audit account access")
     account_p.add_argument("name", help="Account name")
+    account_type_group = account_p.add_mutually_exclusive_group()
+    account_type_group.add_argument("--standing", action="store_true", help="Only show standing permissions")
+    account_type_group.add_argument("--eligible", action="store_true", help="Only show eligible permissions")
 
     role_p = sub.add_parser("role", help="Show role details")
     role_p.add_argument("name", help="Role name")
@@ -462,6 +488,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_users_p = sub.add_parser("list-users", help="List all users")
     list_users_p.add_argument("--production-only", action="store_true", help="Only show users with production assignment access")
+    list_users_type_group = list_users_p.add_mutually_exclusive_group()
+    list_users_type_group.add_argument("--standing", action="store_true", help="Only show users with standing permissions")
+    list_users_type_group.add_argument("--eligible", action="store_true", help="Only show users with eligible permissions")
     sub.add_parser("list-roles", help="List all roles")
     sub.add_parser("interactive", help="Interactive mode")
 
@@ -486,12 +515,18 @@ def _dispatch_command(args: argparse.Namespace, model: EntitlementsModel) -> boo
     Returns:
         bool or None: handler result, or None for commands without a return value
     """
+    entitlement_type = None
+    if getattr(args, 'standing', False):
+        entitlement_type = 'STANDING'
+    elif getattr(args, 'eligible', False):
+        entitlement_type = 'ELIGIBLE'
+
     dispatch = {
-        "user": lambda: cmd_user(model, args.identifier, args.account, args.detailed, args.production_only),
-        "account": lambda: cmd_account(model, args.name),
+        "user": lambda: cmd_user(model, args.identifier, args.account, args.detailed, args.production_only, entitlement_type),
+        "account": lambda: cmd_account(model, args.name, entitlement_type),
         "role": lambda: cmd_role(model, args.name),
         "permission": lambda: cmd_permission(model, args.name),
-        "list-users": lambda: cmd_list_users(model, args.production_only),
+        "list-users": lambda: cmd_list_users(model, args.production_only, entitlement_type),
         "list-roles": lambda: cmd_list_roles(model),
         "interactive": lambda: interactive_mode(model),
         "export": lambda: cmd_export(model, args.filter),

@@ -94,7 +94,7 @@ Query Results
   - Example: ViewOnlyAccess in production accounts
 
 - **Eligible**: Requires approval, temporary elevated access
-  - Example: AdministratorAccess in production (request required)
+  - Example: AdministratorAccess in production (TEAM Request required)
 
 ### Assignment Sets
 
@@ -135,7 +135,7 @@ Standing Permissions (Always Active):
     - ViewOnlyAccessPermission
         → arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
 
-Eligible Permissions (Request Required):
+Eligible Permissions (TEAM Request required):
 
   ct-security-tooling:
     - ApprovedAdmin

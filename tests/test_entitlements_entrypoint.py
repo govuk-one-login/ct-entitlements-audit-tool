@@ -16,6 +16,7 @@ _spec = importlib.util.spec_from_file_location(
 _cli = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_cli)
 resolve_user = _cli.resolve_user
+cmd_account = _cli.cmd_account
 cmd_list_roles = _cli.cmd_list_roles
 cmd_list_users = _cli.cmd_list_users
 cmd_permission = _cli.cmd_permission
@@ -205,3 +206,125 @@ class TestCmdUserProductionOnly:
         cmd_user(model, "alice", account="prod-account-b", production_only=True)
         output = capsys.readouterr().out
         assert "ViewOnly" in output
+
+
+class TestCmdUserEntitlementType:
+    def test_standing_only_shows_standing_permissions(self, model, capsys):
+        cmd_user(model, "alice", entitlement_type="STANDING")
+        output = capsys.readouterr().out
+        assert "Standing Permissions" in output
+        assert "Eligible Permissions" not in output
+
+    def test_eligible_only_shows_eligible_permissions(self, model, capsys):
+        cmd_user(model, "alice", entitlement_type="ELIGIBLE")
+        output = capsys.readouterr().out
+        assert "Eligible Permissions" in output
+        assert "Standing Permissions" not in output
+
+    def test_standing_only_includes_standing_accounts(self, model, capsys):
+        cmd_user(model, "alice", entitlement_type="STANDING")
+        output = capsys.readouterr().out
+        assert "dev-account-a" in output
+        assert "Admin" in output
+
+    def test_eligible_only_includes_eligible_accounts(self, model, capsys):
+        cmd_user(model, "alice", entitlement_type="ELIGIBLE")
+        output = capsys.readouterr().out
+        assert "prod-account-a" in output
+        assert "PowerUser" in output
+
+    def test_standing_with_account_filter(self, model, capsys):
+        cmd_user(model, "alice", account="prod-account-a", entitlement_type="STANDING")
+        output = capsys.readouterr().out
+        assert "Standing" in output
+        assert "ViewOnly" in output
+        assert "Eligible" not in output
+
+    def test_eligible_with_account_filter(self, model, capsys):
+        cmd_user(model, "alice", account="prod-account-a", entitlement_type="ELIGIBLE")
+        output = capsys.readouterr().out
+        assert "Eligible" in output
+        assert "PowerUser" in output
+        assert "Standing" not in output
+
+    def test_no_filter_shows_both(self, model, capsys):
+        cmd_user(model, "alice")
+        output = capsys.readouterr().out
+        assert "Standing Permissions" in output
+        assert "Eligible Permissions" in output
+
+
+class TestCmdAccountEntitlementType:
+    def test_standing_only_shows_standing_access(self, model, capsys):
+        cmd_account(model, "dev-account-a", entitlement_type="STANDING")
+        output = capsys.readouterr().out
+        assert "Standing Access" in output
+        assert "Eligible Access" not in output
+
+    def test_eligible_only_shows_eligible_access(self, model, capsys):
+        cmd_account(model, "prod-account-a", entitlement_type="ELIGIBLE")
+        output = capsys.readouterr().out
+        assert "Eligible Access" in output
+        assert "Standing Access" not in output
+
+    def test_standing_only_lists_users_with_standing(self, model, capsys):
+        cmd_account(model, "dev-account-a", entitlement_type="STANDING")
+        output = capsys.readouterr().out
+        assert "alice" in output
+
+    def test_eligible_only_lists_users_with_eligible(self, model, capsys):
+        cmd_account(model, "prod-account-a", entitlement_type="ELIGIBLE")
+        output = capsys.readouterr().out
+        assert "alice" in output
+        assert "PowerUser" in output
+
+    def test_no_filter_shows_both(self, model, capsys):
+        cmd_account(model, "prod-account-a")
+        output = capsys.readouterr().out
+        assert "Standing Access" in output
+        assert "Eligible Access" in output
+
+
+class TestCmdListUsersEntitlementType:
+    def test_standing_only_shows_users_with_standing(self, model, capsys):
+        cmd_list_users(model, entitlement_type="STANDING")
+        output = capsys.readouterr().out
+        # alice and bob have standing permissions via team-one-engineers and team-two-engineers
+        assert "alice" in output
+        assert "bob" in output
+
+    def test_standing_only_includes_user_with_only_standing(self, model, capsys):
+        # nopr has dev-only-engineers which only has standing_permissions
+        cmd_list_users(model, entitlement_type="STANDING")
+        output = capsys.readouterr().out
+        assert "nopr" in output
+
+    def test_eligible_only_excludes_standing_only_user(self, model, capsys):
+        # nopr's dev-only-engineers role has no eligible_permissions
+        cmd_list_users(model, entitlement_type="ELIGIBLE")
+        output = capsys.readouterr().out
+        assert "nopr" not in output
+
+    def test_eligible_only_shows_users_with_eligible(self, model, capsys):
+        cmd_list_users(model, entitlement_type="ELIGIBLE")
+        output = capsys.readouterr().out
+        assert "alice" in output
+        assert "bob" in output
+
+    def test_standing_header_shows_filtered_label(self, model, capsys):
+        cmd_list_users(model, entitlement_type="STANDING")
+        output = capsys.readouterr().out
+        assert "Standing" in output
+
+    def test_eligible_header_shows_filtered_label(self, model, capsys):
+        cmd_list_users(model, entitlement_type="ELIGIBLE")
+        output = capsys.readouterr().out
+        assert "Eligible" in output
+
+    def test_combined_production_only_and_eligible(self, model, capsys):
+        cmd_list_users(model, production_only=True, entitlement_type="ELIGIBLE")
+        output = capsys.readouterr().out
+        # alice and bob have eligible production permissions, nopr does not
+        assert "alice" in output
+        assert "bob" in output
+        assert "nopr" not in output

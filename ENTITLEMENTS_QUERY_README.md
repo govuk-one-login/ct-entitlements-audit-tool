@@ -114,7 +114,7 @@ Standing Permissions (Always Active):
   ct-security-tooling:
     - ViewOnlyAccessPermission
 
-Eligible Permissions (Request Required):
+Eligible Permissions (TEAM Request required):
 
   ct-security-tooling:
     - ApprovedAdmin
