@@ -3,10 +3,15 @@ import pytest
 import yaml
 
 
-TEAM_CSV = """\
+ALPHA_TEAM_CSV = """\
 user_alias,display_name,email,family_name,given_name
 alice,Alice Smith,alice@example.com,Smith,Alice
 bob,Bob Jones,bob@example.com,Jones,Bob
+"""
+
+BETA_TEAM_CSV = """\
+user_alias,display_name,email,family_name,given_name
+nopr,No Prod,nopr@example.com,Prod,No
 """
 
 ROLE_CSV = """\
@@ -14,7 +19,7 @@ user_alias,display_name,email,family_name,given_name
 ignored,Ignored User,ignored@example.com,User,Ignored
 """
 
-GROUPS_YAML = """\
+ALPHA_GROUPS_YAML = """\
 ---
 ################################################################################
 # Alpha Pod Groups
@@ -22,26 +27,34 @@ GROUPS_YAML = """\
 alpha-team-one:
   description: Alpha Team One
   roles:
-    - team-one
-    - team-two
+    - team-one-engineers
+    - team-two-engineers
   collaborators:
     - charlie
 
 alpha-team-two:
   description: Alpha Team Two
   roles:
-    - team-two
+    - team-two-engineers
   permanent_members:
     - danielle
 """
 
-ENTITLEMENTS_YAML = """\
+BETA_GROUPS_YAML = """\
+---
+beta-team-one:
+  description: Beta Team
+  roles:
+    - dev-only-engineers
+"""
+
+ALPHA_ENTITLEMENTS_YAML = """\
 ---
 ################################################################################
 # Alpha Pod Entitlements
 ################################################################################
 
-team-one:
+team-one-engineers:
   development:
     accounts:
       - dev-account-a
@@ -77,7 +90,7 @@ team-one:
     standing_permissions:
       - EmergencyAdmin
 
-team-two:
+team-two-engineers:
   production:
     accounts:
       - prod-account-b
@@ -86,6 +99,16 @@ team-two:
       - ViewOnly
     eligible_permissions:
       - ReadOnly
+"""
+
+BETA_ENTITLEMENTS_YAML = """\
+---
+dev-only-engineers:
+  development:
+    accounts:
+      - dev-only-account
+    standing_permissions:
+      - Admin
 """
 
 PERMISSIONS_TFVARS = """\
@@ -104,13 +127,20 @@ PowerUser = {
 @pytest.fixture
 def base_path(tmp_path):
     """Create a minimal file structure mimicking the terraform layout."""
-    env_pods = tmp_path / "env" / "production" / "pods" / "alpha"
-    env_pods.mkdir(parents=True)
+    alpha_pod = tmp_path / "env" / "production" / "pods" / "alpha"
+    alpha_pod.mkdir(parents=True)
 
-    (env_pods / "alpha-team-one.csv").write_text(TEAM_CSV)
-    (env_pods / "role.csv").write_text(ROLE_CSV)
-    (env_pods / "groups.yaml").write_text(GROUPS_YAML)
-    (env_pods / "entitlements.yaml").write_text(ENTITLEMENTS_YAML)
+    (alpha_pod / "alpha-team-one.csv").write_text(ALPHA_TEAM_CSV)
+    (alpha_pod / "role.csv").write_text(ROLE_CSV)
+    (alpha_pod / "groups.yaml").write_text(ALPHA_GROUPS_YAML)
+    (alpha_pod / "entitlements.yaml").write_text(ALPHA_ENTITLEMENTS_YAML)
+
+    beta_pod = tmp_path / "env" / "production" / "pods" / "beta"
+    beta_pod.mkdir(parents=True)
+    (beta_pod / "beta-team-one.csv").write_text(BETA_TEAM_CSV)
+    (beta_pod / "groups.yaml").write_text(BETA_GROUPS_YAML)
+    (beta_pod / "entitlements.yaml").write_text(BETA_ENTITLEMENTS_YAML)
+
     (tmp_path / "permissions_pod_standing.auto.tfvars").write_text(PERMISSIONS_TFVARS)
 
     return tmp_path
